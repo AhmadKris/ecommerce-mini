@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens transcribed from the Design System artifact
+ * (https://claude.ai/artifact/DBjoEeqXaniQzSfvUR3TJj) — do not hand-edit
+ * values here without updating that source of truth first.
+ *
+ * Tailwind v4 uses CSS-first config (@theme), not tailwind.config.ts —
+ * see "Known Issues" in .claude/CLAUDE.md for why this differs from the
+ * documented convention.
+ */
+@theme {
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+
+  --color-success-100: #dcfce7;
+  --color-success-500: #16a34a;
+  --color-warning-100: #fef3c7;
+  --color-warning-500: #d97706;
+  --color-error-100: #fee2e2;
+  --color-error-500: #dc2626;
+
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.16);
+
+  /*
+   * Tailwind's default spacing scale (1 = 4px) already lines up exactly
+   * with the design system's space-1..space-16 tokens, so it's left as-is
+   * rather than redefined here.
+   */
+}
+
+/*
+ * Semantic aliases, mirroring the {token} references in tokens.json.
+ * Deliberately NOT named --text-* — Tailwind v4 reserves that prefix for
+ * its font-size theme namespace (text-sm, text-lg, ...) and will try to
+ * parse any --text-* custom property as a font-size value, even outside
+ * @theme. --ink-* is used instead for text-color aliases to avoid that
+ * collision. Consume these via arbitrary values, e.g. bg-(--surface-page).
+ */
+:root {
+  --surface-page: var(--color-neutral-50);
+  --surface-admin: var(--color-neutral-100);
+  --surface-admin-nav: var(--color-neutral-900);
+  --surface-card: var(--color-neutral-0);
+  --nav-active-bg: var(--color-primary-700);
+  --border-default: var(--color-neutral-200);
+  --border-strong: var(--color-neutral-300);
+  --ink-primary: var(--color-neutral-900);
+  --ink-secondary: var(--color-neutral-500);
+  --ink-inverse: var(--color-neutral-0);
+  --ink-link: var(--color-primary-600);
+}
+
+/*
+ * Compound typography utilities — each groups font-family + size +
+ * line-height + weight into one class, matching tokens.json's type.groups.
+ * Display styles are storefront-only; heading-sm/body-sm/body-md are the
+ * admin panel's workhorses. Monetary/ID values must use data-md/data-sm,
+ * never a Body style, per the design system's typography rules.
+ */
+@utility text-display-lg {
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 42px;
+  font-weight: 500;
+}
+@utility text-display-md {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 500;
+}
+@utility text-heading-xl {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 500;
+}
+@utility text-heading-lg {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 500;
+}
+@utility text-heading-md {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+}
+@utility text-heading-sm {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+}
+@utility text-body-lg {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+@utility text-body-md {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+@utility text-body-sm {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+@utility text-label-md {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+}
+@utility text-label-sm {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+}
+@utility text-data-md {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+@utility text-data-sm {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+body {
+  margin: 0;
+  background-color: var(--surface-page);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+}

@@ -1,0 +1,119 @@
+// Command api is the entry point for the e-commerce REST API. It wires
+// config, logger, database, cache, and router together, then starts the
+// HTTP server with graceful shutdown on SIGTERM/SIGINT.
+package main
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"ecommerce-backend/internal/auth"
+	"ecommerce-backend/internal/cache"
+	"ecommerce-backend/internal/config"
+	"ecommerce-backend/internal/database"
+	"ecommerce-backend/internal/handler"
+	"ecommerce-backend/internal/logger"
+	"ecommerce-backend/internal/repository"
+	"ecommerce-backend/internal/router"
+	"ecommerce-backend/internal/service"
+)
+
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("failed to load config", slog.Any("err", err))
+		os.Exit(1)
+	}
+
+	log := logger.New(cfg.Env)
+	slog.SetDefault(log)
+
+	db, err := database.Connect(database.Options{
+		DSN:             cfg.DatabaseURL,
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: cfg.DBConnMaxLifetime,
+	})
+	if err != nil {
+		log.Error("failed to connect to database", slog.Any("err", err))
+		os.Exit(1)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	redisClient, err := cache.Connect(ctx, cache.Options{
+		Addr:     cfg.RedisAddr,
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDB,
+	})
+	if err != nil {
+		log.Error("failed to connect to redis", slog.Any("err", err))
+		os.Exit(1)
+	}
+
+	tokenManager := auth.NewTokenManager(cfg.JWTAccessSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
+	refreshBlacklist := auth.NewRefreshBlacklist(redisClient)
+
+	userRepo := repository.NewUserRepository(db)
+	roleRepo := repository.NewRoleRepository(db)
+	authService := service.NewAuthService(userRepo, roleRepo, tokenManager, refreshBlacklist, cfg.BcryptCost)
+	authHandler := handler.NewAuthHandler(authService)
+
+	productRepo := repository.NewProductRepository(db)
+	categoryRepo := repository.NewCategoryRepository(db)
+	productService := service.NewProductService(productRepo, categoryRepo)
+	productHandler := handler.NewProductHandler(productService)
+
+	cartRepo := repository.NewCartRepository(db)
+	cartService := service.NewCartService(cartRepo, productRepo)
+	cartHandler := handler.NewCartHandler(cartService)
+
+	orderRepo := repository.NewOrderRepository(db)
+	orderService := service.NewOrderService(orderRepo)
+	orderHandler := handler.NewOrderHandler(orderService)
+
+	engine := router.New(router.Deps{
+		DB:                 db,
+		Cache:              redisClient,
+		Logger:             log,
+		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		Tokens:             tokenManager,
+		AuthHandler:        authHandler,
+		ProductHandler:     productHandler,
+		CartHandler:        cartHandler,
+		OrderHandler:       orderHandler,
+	})
+
+	server := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: engine,
+	}
+
+	go func() {
+		log.Info("starting server", slog.String("port", cfg.Port), slog.String("env", cfg.Env))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("server error", slog.Any("err", err))
+			os.Exit(1)
+		}
+	}()
+
+	<-ctx.Done()
+	stop()
+	log.Info("shutting down server")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Error("graceful shutdown failed", slog.Any("err", err))
+		os.Exit(1)
+	}
+
+	log.Info("server stopped")
+}

@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ecommerce_mini
+    ports:
+      # Host port 5433, not 5432 — avoids clashing with a native PostgreSQL
+      # service already bound to 5432 on some dev machines (see backend's
+      # own docker-compose.yml).
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: migrate/migrate:v4.17.0
+    volumes:
+      - ./ecommerce-backend/migrations:/migrations
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://postgres:postgres@postgres:5432/ecommerce_mini?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./ecommerce-backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./ecommerce-backend/.env
+    environment:
+      # Inside this compose network, api reaches its siblings by service
+      # name on their internal port, not localhost — same override as
+      # ecommerce-backend/docker-compose.yml.
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/ecommerce_mini?sslmode=disable
+      REDIS_ADDR: redis:6379
+      # The Dockerized SPA is served on localhost:3000 (not Vite's dev
+      # server at :5173, which .env's default covers), so it needs its own
+      # origin allowlisted or the browser blocks every API call as CORS.
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ./ecommerce-frontend
+      dockerfile: Dockerfile
+      args:
+        # The SPA runs in the user's browser, not inside this Docker
+        # network — it must reach the API through the host-published port
+        # (localhost:8080), not the internal service name "api".
+        VITE_API_BASE_URL: http://localhost:8080/api
+    ports:
+      - "3000:8080"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
