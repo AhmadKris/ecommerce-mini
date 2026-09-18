@@ -12,14 +12,15 @@ import (
 type Code string
 
 const (
-	CodeNotFound       Code = "NOT_FOUND"
-	CodeValidation     Code = "VALIDATION_ERROR"
-	CodeUnauthorized   Code = "UNAUTHORIZED"
-	CodeForbidden      Code = "FORBIDDEN"
-	CodeConflict       Code = "CONFLICT"
-	CodeDuplicateEntry Code = "DUPLICATE_ENTRY"
-	CodeRateLimited    Code = "RATE_LIMITED"
-	CodeInternal       Code = "INTERNAL_ERROR"
+	CodeNotFound        Code = "NOT_FOUND"
+	CodeValidation      Code = "VALIDATION_ERROR"
+	CodeUnauthorized    Code = "UNAUTHORIZED"
+	CodeForbidden       Code = "FORBIDDEN"
+	CodeConflict        Code = "CONFLICT"
+	CodeDuplicateEntry  Code = "DUPLICATE_ENTRY"
+	CodeRateLimited     Code = "RATE_LIMITED"
+	CodePayloadTooLarge Code = "PAYLOAD_TOO_LARGE"
+	CodeInternal        Code = "INTERNAL_ERROR"
 )
 
 // AppError is the single error type that crosses the service → handler
@@ -60,6 +61,8 @@ func (e *AppError) HTTPStatus() int {
 		return http.StatusConflict
 	case CodeRateLimited:
 		return http.StatusTooManyRequests
+	case CodePayloadTooLarge:
+		return http.StatusRequestEntityTooLarge
 	default:
 		return http.StatusInternalServerError
 	}
@@ -91,6 +94,10 @@ func DuplicateEntry(message string, err error) *AppError {
 
 func RateLimited(message string) *AppError {
 	return &AppError{Code: CodeRateLimited, Message: message}
+}
+
+func PayloadTooLarge(message string) *AppError {
+	return &AppError{Code: CodePayloadTooLarge, Message: message}
 }
 
 // Internal wraps an unclassified error with a generic client-facing message.

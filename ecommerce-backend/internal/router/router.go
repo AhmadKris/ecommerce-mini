@@ -39,7 +39,17 @@ func New(deps Deps) *gin.Engine {
 	engine.Use(middleware.RequestID(deps.Logger))
 	engine.Use(middleware.RequestLogging())
 	engine.Use(middleware.CORS(deps.CORSAllowedOrigins))
+	// ErrorHandler must be registered before anything that can itself call
+	// c.Error()+c.Abort() (MaxBodySize here, RequirePermission/RateLimit at
+	// the route level) — it works by calling c.Next() and inspecting
+	// c.Errors *after* it returns, so it has to wrap around them in the
+	// chain, not come after them. Getting this backwards means c.Abort()
+	// short-circuits before ErrorHandler's c.Next() is ever reached, and the
+	// client gets a bare 200 with no body instead of the intended error
+	// response — found by actually curling an oversized request, not by
+	// reading the code.
 	engine.Use(middleware.ErrorHandler())
+	engine.Use(middleware.MaxBodySize())
 
 	engine.GET("/health", healthHandler())
 	engine.GET("/ready", readyHandler(deps))
