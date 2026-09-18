@@ -1,8 +1,14 @@
 import { Outlet, Route, Routes } from "react-router-dom";
 
+import { AdminRoute } from "./components/AdminRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Header } from "./components/layout/Header";
 import { Home } from "./pages/Home";
+import { AdminCategories } from "./pages/admin/AdminCategories";
+import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminOrders } from "./pages/admin/AdminOrders";
+import { AdminProducts } from "./pages/admin/AdminProducts";
+import { ProductForm } from "./pages/admin/ProductForm";
 import { Login } from "./pages/auth/Login";
 import { Register } from "./pages/auth/Register";
 import { Cart } from "./pages/cart/Cart";
@@ -33,6 +39,14 @@ function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
+        </Route>
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/products" element={<AdminProducts />} />
+          <Route path="/admin/products/new" element={<ProductForm />} />
+          <Route path="/admin/products/:id/edit" element={<ProductForm />} />
+          <Route path="/admin/categories" element={<AdminCategories />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
         </Route>
       </Route>
     </Routes>

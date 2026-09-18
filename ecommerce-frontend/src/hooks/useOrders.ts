@@ -13,13 +13,32 @@ export function useOrders(page = 1) {
   });
 }
 
+interface CheckoutInput {
+  shippingAddress: string;
+  /**
+   * Sent as Idempotency-Key so retrying the same checkout attempt (e.g. the
+   * user clicking "Buat Pesanan" again after a dropped connection) replays
+   * the first order instead of creating a duplicate — see backend's
+   * middleware.Idempotency. Callers should reuse the same key across
+   * retries of one attempt and generate a new one for a genuinely new
+   * checkout.
+   */
+  idempotencyKey: string;
+}
+
 /** Checks out the current cart into an order. */
 export function useCheckout() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (shippingAddress: string) =>
-      apiClient.post<Order>("/orders", { shipping_address: shippingAddress }).then((response) => response.data),
+    mutationFn: ({ shippingAddress, idempotencyKey }: CheckoutInput) =>
+      apiClient
+        .post<Order>(
+          "/orders",
+          { shipping_address: shippingAddress },
+          { headers: { "Idempotency-Key": idempotencyKey } },
+        )
+        .then((response) => response.data),
     onSuccess: () => {
       // Checkout clears the cart and decrements product stock server-side —
       // invalidate all three rather than hand-patching each cache entry.

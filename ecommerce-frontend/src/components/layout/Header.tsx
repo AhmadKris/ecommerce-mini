@@ -5,6 +5,7 @@ import { useAuthStore } from "../../store/auth-store";
 
 export function Header() {
   const isAuthenticated = useAuthStore((state) => state.accessToken !== null);
+  const isAdmin = useAuthStore((state) => state.roles.includes("admin"));
   const clearSession = useAuthStore((state) => state.clearSession);
   const { data: cart } = useCart();
   const itemCount = cart?.items.length ?? 0;
@@ -22,6 +23,11 @@ export function Header() {
         {isAuthenticated && (
           <Link to="/orders" className="text-body-md text-(--ink-primary)">
             Pesanan
+          </Link>
+        )}
+        {isAdmin && (
+          <Link to="/admin" className="text-body-md text-(--ink-primary)">
+            Admin
           </Link>
         )}
       </nav>

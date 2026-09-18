@@ -1,8 +1,9 @@
 # Ecommerce Mini — Frontend
 
-Storefront SPA untuk Ecommerce Mini, konsumsi REST API dari
+Storefront + admin panel SPA untuk Ecommerce Mini, konsumsi REST API dari
 `ecommerce-backend`: login/register, katalog produk, keranjang belanja,
-checkout, dan riwayat pesanan.
+checkout, riwayat pesanan, dan (untuk role admin) kelola produk/kategori +
+lihat semua pesanan.
 
 ## Tech Stack
 
@@ -19,6 +20,9 @@ Router, React Hook Form + Zod, Axios, Vitest + React Testing Library + MSW.
   konfirmasi order setelah submit.
 - **Riwayat pesanan** — daftar order milik user yang login dengan status dan
   total.
+- **Admin panel** (`/admin`, role admin saja) — dashboard, kelola produk
+  (tambah/ubah), kelola kategori (tambah/ubah/hapus), lihat semua pesanan
+  dari seluruh customer.
 
 ## Setup
 
@@ -67,9 +71,11 @@ VITE_API_BASE_URL=https://api.staging.example.com docker compose up -d --build
 ```
 src/
   pages/            Halaman (login, produk, cart, checkout, order, dll)
+    admin/            Halaman admin panel (dashboard, produk, kategori, order)
   components/
     ui/              Komponen presentational generik (Button, Input, dll)
     <domain>/         Komponen spesifik domain (cart, product, layout)
+    AdminRoute.tsx    Route guard berbasis role "admin"
   hooks/             React Query hooks per resource
   lib/               api-client (Axios), config, format, query-client
   store/             Zustand store (auth)
@@ -81,5 +87,6 @@ src/
 ## Status
 
 Fitur inti sudah selesai: setup project, API client + auth store, halaman
-login/register, katalog produk, keranjang, checkout, riwayat pesanan. Belum
-ada: admin panel, halaman profile/`/me`.
+login/register, katalog produk, keranjang, checkout, riwayat pesanan, admin
+panel (produk, kategori, semua pesanan). Belum ada: halaman profile
+(backend punya `GET /auth/me`, frontend belum mengonsumsinya).

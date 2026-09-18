@@ -29,6 +29,10 @@ ecommerce-mini/
   ongkos kirim dihitung dan dipersist di sisi server.
 - **Riwayat pesanan** — daftar order milik user yang login, dengan status dan
   rincian item.
+- **Admin panel** — kelola produk & kategori, lihat semua pesanan dari
+  seluruh customer.
+- **Hardening** — rate limiting (endpoint auth), idempotency key di
+  checkout, audit log untuk action sensitif.
 
 ## Tech Stack
 
@@ -79,19 +83,27 @@ Endpoint utama:
 |---|---|
 | `POST /api/auth/register`, `POST /api/auth/login` | Registrasi & login |
 | `POST /api/auth/refresh` | Perpanjang access token |
+| `GET /api/auth/me` | Profil user yang login |
 | `GET /api/products`, `GET /api/products/:slug` | Katalog produk |
-| `POST/PUT /api/products` | Kelola produk (admin) |
+| `POST/PUT /api/admin/products` | Kelola produk (admin) |
+| `GET /api/categories` | List kategori |
+| `POST/PUT/DELETE /api/admin/categories` | Kelola kategori (admin) |
 | `GET/POST/PUT/DELETE /api/cart` | Keranjang belanja |
-| `POST /api/orders` | Checkout |
-| `GET /api/orders` | Riwayat pesanan |
+| `POST /api/orders` | Checkout (header opsional `Idempotency-Key`) |
+| `GET /api/orders` | Riwayat pesanan sendiri |
+| `GET /api/admin/orders` | Semua pesanan (admin) |
 
 ## Status
 
-**Fase 1 (Foundation) — selesai**, di kedua sisi:
+**Fase 1 (Foundation) — selesai**, di kedua sisi. **Fase 2 (Production
+Hardening) — hampir selesai**:
 
-- Backend: scaffold, migration, autentikasi + RBAC, CRUD produk, keranjang,
-  checkout/order.
+- Backend: scaffold, auth + RBAC, CRUD produk & kategori, keranjang,
+  checkout/order (idempotency key, audit log), rate limiting, `/auth/me`,
+  admin order list, integration test (testcontainers-go).
 - Frontend: setup project, API client + auth store, halaman login/register,
-  katalog produk, keranjang, checkout, riwayat pesanan.
+  katalog produk, keranjang, checkout, riwayat pesanan, admin panel (produk,
+  kategori, semua pesanan).
 
-Berikutnya: hardening (rate limiting, idempotency, audit log) dan admin panel.
+Belum ada: circuit breaker (menunggu integrasi payment gateway eksternal
+sungguhan), observability (Fase 3 — Prometheus/Grafana, tracing).

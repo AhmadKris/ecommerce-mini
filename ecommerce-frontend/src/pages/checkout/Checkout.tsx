@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 
@@ -29,10 +29,16 @@ export function Checkout() {
     formState: { errors },
   } = useForm<CheckoutFormValues>({ resolver: zodResolver(checkoutSchema) });
 
+  // One key per checkout attempt, reused across retries (e.g. clicking
+  // "Buat Pesanan" again after the first submit's connection drops) so the
+  // backend replays the original order instead of creating a duplicate.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
+
   function onSubmit(values: CheckoutFormValues) {
-    checkout.mutate(values.shippingAddress, {
-      onSuccess: (order) => setCompletedOrder(order),
-    });
+    checkout.mutate(
+      { shippingAddress: values.shippingAddress, idempotencyKey: idempotencyKeyRef.current },
+      { onSuccess: (order) => setCompletedOrder(order) },
+    );
   }
 
   if (completedOrder) {

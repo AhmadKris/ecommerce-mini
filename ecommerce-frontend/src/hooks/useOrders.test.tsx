@@ -33,15 +33,26 @@ describe("useOrders", () => {
 });
 
 describe("useCheckout", () => {
-  it("posts shipping_address and returns the created order", async () => {
+  it("posts shipping_address with an Idempotency-Key header and returns the created order", async () => {
     let receivedBody: unknown;
+    let receivedIdempotencyKey: string | null = null;
     server.use(
       http.post(ordersUrl, async ({ request }) => {
         receivedBody = await request.json();
+        receivedIdempotencyKey = request.headers.get("Idempotency-Key");
         return HttpResponse.json(
           {
             success: true,
-            data: { id: 1, user_id: 1, status: "pending", total_amount: 18000, shipping_address: "Jl. Merdeka No. 1", created_at: "2026-01-01T00:00:00Z", items: [] },
+            data: {
+              id: 1,
+              user_id: 1,
+              status: "pending",
+              total_amount: 18000,
+              shipping_cost: 0,
+              shipping_address: "Jl. Merdeka No. 1",
+              created_at: "2026-01-01T00:00:00Z",
+              items: [],
+            },
           },
           { status: 201 },
         );
@@ -49,10 +60,11 @@ describe("useCheckout", () => {
     );
 
     const { result } = renderHook(() => useCheckout(), { wrapper });
-    result.current.mutate("Jl. Merdeka No. 1");
+    result.current.mutate({ shippingAddress: "Jl. Merdeka No. 1", idempotencyKey: "test-key-123" });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(receivedBody).toEqual({ shipping_address: "Jl. Merdeka No. 1" });
+    expect(receivedIdempotencyKey).toBe("test-key-123");
     expect(result.current.data?.id).toBe(1);
   });
 });
