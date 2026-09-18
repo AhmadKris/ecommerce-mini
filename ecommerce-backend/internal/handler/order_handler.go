@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -72,4 +73,27 @@ func (h *OrderHandler) ListAll(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": orders, "meta": meta}})
+}
+
+// UpdateStatus handles PATCH /api/admin/orders/:id/status.
+func (h *OrderHandler) UpdateStatus(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		_ = c.Error(apperror.Validation("ID order tidak valid", []string{"id: must be an integer"}))
+		return
+	}
+
+	var req model.UpdateOrderStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(apperror.Validation("Status order tidak valid", bindingErrors(err)))
+		return
+	}
+
+	actorID, _ := middleware.UserIDFromContext(c)
+	order, err := h.orderService.UpdateStatus(c.Request.Context(), actorID, uint(id), req.Status)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": order})
 }

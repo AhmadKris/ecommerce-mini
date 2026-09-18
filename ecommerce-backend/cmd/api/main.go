@@ -80,7 +80,7 @@ func main() {
 	cartHandler := handler.NewCartHandler(cartService)
 
 	orderRepo := repository.NewOrderRepository(db)
-	orderService := service.NewOrderService(orderRepo)
+	orderService := service.NewOrderService(orderRepo, auditLogRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	engine := router.New(router.Deps{

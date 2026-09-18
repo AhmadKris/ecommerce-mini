@@ -32,6 +32,8 @@ type OrderRepository interface {
 	Checkout(ctx context.Context, userID uint, shippingAddress string) (*model.Order, error)
 	ListByUserID(ctx context.Context, userID uint, page, limit int) ([]model.Order, int64, error)
 	ListAll(ctx context.Context, page, limit int) ([]model.Order, int64, error)
+	FindByID(ctx context.Context, id uint) (*model.Order, error)
+	UpdateStatus(ctx context.Context, id uint, status string) (*model.Order, error)
 }
 
 type orderRepository struct {
@@ -180,6 +182,30 @@ func (r *orderRepository) ListByUserID(ctx context.Context, userID uint, page, l
 	}
 
 	return orders, total, nil
+}
+
+// FindByID returns a single order (with items preloaded), or nil if it
+// doesn't exist.
+func (r *orderRepository) FindByID(ctx context.Context, id uint) (*model.Order, error) {
+	var order model.Order
+	err := r.db.WithContext(ctx).Preload("Items.Product").First(&order, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("repository: find order by id: %w", err)
+	}
+	return &order, nil
+}
+
+// UpdateStatus sets an order's status. Transition validity (e.g. a
+// "delivered" order can't go back to "pending") is a business rule checked
+// by the service layer, not here — this is a plain write.
+func (r *orderRepository) UpdateStatus(ctx context.Context, id uint, status string) (*model.Order, error) {
+	if err := r.db.WithContext(ctx).Model(&model.Order{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+		return nil, fmt.Errorf("repository: update order status: %w", err)
+	}
+	return r.FindByID(ctx, id)
 }
 
 // ListAll returns a page of every order across all users, newest first —

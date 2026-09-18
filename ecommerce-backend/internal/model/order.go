@@ -2,10 +2,17 @@ package model
 
 import "time"
 
-// OrderStatusPending is the only status an order can have in Fase 1 — no
-// status-transition endpoint exists yet (see Known Issues in
-// .claude/CLAUDE.md), so orders never leave this state today.
-const OrderStatusPending = "pending"
+// Order status values, in their normal forward progression. Cancelled is
+// reachable from Pending/Paid/Processing but not from Shipped/Delivered —
+// see service.orderStatusTransitions for the full transition table.
+const (
+	OrderStatusPending    = "pending"
+	OrderStatusPaid       = "paid"
+	OrderStatusProcessing = "processing"
+	OrderStatusShipped    = "shipped"
+	OrderStatusDelivered  = "delivered"
+	OrderStatusCancelled  = "cancelled"
+)
 
 // Order is a completed checkout. TotalAmount and each OrderItem's
 // PriceAtPurchase/ProductName are snapshotted at checkout time — they never

@@ -639,3 +639,49 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission order:read_all
+  /api/admin/orders/{id}/status:
+    patch:
+      summary: >
+        Ubah status order (admin, butuh permission order:update_status).
+        Transisi dibatasi (lihat orderStatusTransitions di
+        internal/service/order_service.go): pending→paid/cancelled,
+        paid→processing/cancelled, processing→shipped/cancelled,
+        shipped→delivered. delivered dan cancelled adalah status akhir
+        (tidak bisa diubah lagi). Transisi di luar daftar itu ditolak 409,
+        bukan diterima diam-diam.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, paid, processing, shipped, delivered, cancelled]
+      responses:
+        "200":
+          description: Status order berhasil diubah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: Status tidak dikenal (bukan salah satu enum di atas)
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission order:update_status
+        "404":
+          description: Order tidak ditemukan
+        "409":
+          description: Transisi status tidak valid dari status order saat ini
