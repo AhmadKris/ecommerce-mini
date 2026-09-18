@@ -1,0 +1,480 @@
+openapi: 3.0.3
+info:
+  title: Ecommerce Mini API
+  version: 0.1.0
+  description: >
+    REST API untuk platform e-commerce mini (auth, katalog produk, cart,
+    checkout/order, admin). Selalu disinkronkan setiap kali route berubah —
+    lihat internal/router untuk sumber kebenaran route yang aktif.
+servers:
+  - url: /api
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    SuccessEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+    ErrorEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: string
+paths:
+  /health:
+    get:
+      summary: Liveness probe (tanpa cek dependency)
+      responses:
+        "200":
+          description: Service is alive
+  /ready:
+    get:
+      summary: Readiness probe (cek koneksi database dan Redis)
+      responses:
+        "200":
+          description: Service is ready to serve traffic
+        "503":
+          description: A dependency (database/Redis) is unavailable
+  /api/auth/register:
+    post:
+      summary: Registrasi customer baru (role customer otomatis, tidak bisa admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 255
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+                  description: Wajib mengandung huruf besar, huruf kecil, dan angka.
+      responses:
+        "201":
+          description: Akun berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: Validasi gagal (format/panjang/kekuatan password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Email sudah terdaftar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/auth/login:
+    post:
+      summary: Login dan menerima access + refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Email atau password salah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/auth/refresh:
+    post:
+      summary: >
+        Tukar refresh token dengan pasangan access+refresh token baru.
+        Refresh token lama langsung di-blacklist (single-use) — dipakai
+        ulang akan ditolak 401.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: Token baru berhasil diterbitkan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Refresh token tidak valid, kedaluwarsa, atau sudah dipakai
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/products:
+    get:
+      summary: List produk (public), dengan filter kategori/pencarian dan pagination
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Slug kategori.
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Dicocokkan terhadap nama produk (ILIKE).
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+      responses:
+        "200":
+          description: "{items, meta} — lihat konvensi list endpoint di .claude/CLAUDE.md"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /api/products/{slug}:
+    get:
+      summary: Detail produk (public)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Produk ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "404":
+          description: Produk tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/admin/products:
+    post:
+      summary: Buat produk baru (butuh permission product:create)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, category_id]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 255
+                description:
+                  type: string
+                price:
+                  type: number
+                  minimum: 0
+                stock:
+                  type: integer
+                  minimum: 0
+                category_id:
+                  type: integer
+                image_url:
+                  type: string
+      responses:
+        "201":
+          description: >
+            Produk dibuat. Slug dihasilkan otomatis dari nama; jika bentrok
+            dengan produk lain, otomatis diberi suffix numerik (-2, -3, dst).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: Validasi gagal, termasuk category_id yang tidak ada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission product:create
+  /api/admin/products/{id}:
+    put:
+      summary: Update produk (butuh permission product:update)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: >
+                Semua field opsional — hanya field yang dikirim yang diubah.
+                Mengirim stock:0 valid (explicit zero), berbeda dari tidak
+                mengirim field stock sama sekali.
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+                stock:
+                  type: integer
+                category_id:
+                  type: integer
+                image_url:
+                  type: string
+      responses:
+        "200":
+          description: Produk diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "404":
+          description: Produk tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission product:update
+  /api/cart:
+    get:
+      summary: Ambil cart milik user yang sedang login (dibuat otomatis kalau belum ada)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "{items, total} — lihat CartResponse"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+  /api/cart/items:
+    post:
+      summary: Tambah produk ke cart (kuantitas digabung kalau produk sudah ada di cart)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, quantity]
+              properties:
+                product_id:
+                  type: integer
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        "201":
+          description: Cart terbaru setelah item ditambahkan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: product_id tidak ditemukan
+        "409":
+          description: Kuantitas gabungan melebihi stok produk
+        "401":
+          description: Tidak ada/token akses tidak valid
+  /api/cart/items/{id}:
+    put:
+      summary: Ubah kuantitas item cart (harus milik user yang login)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Cart terbaru
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "404":
+          description: >
+            Item tidak ditemukan — termasuk kalau item itu ada tapi milik user
+            lain (row-level ownership check di service layer, disengaja
+            merespons sama seperti "tidak ada" untuk cegah enumerasi).
+        "409":
+          description: Kuantitas melebihi stok produk
+        "401":
+          description: Tidak ada/token akses tidak valid
+    delete:
+      summary: Hapus item dari cart (harus milik user yang login)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cart terbaru setelah item dihapus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "404":
+          description: Item tidak ditemukan atau milik user lain (lihat catatan PUT di atas)
+        "401":
+          description: Tidak ada/token akses tidak valid
+  /api/orders:
+    post:
+      summary: >
+        Checkout — ubah cart milik user yang login jadi order. Atomic: cek
+        stok, kurangi stok, buat order+order_items+payment, kosongkan cart,
+        semua dalam satu transaction (row lock SELECT...FOR UPDATE per
+        produk, mencegah oversell saat ada checkout bersamaan untuk produk
+        yang sama). Response's total_amount sudah termasuk shipping_cost
+        (flat rate saat ini) — satu-satunya angka total yang jadi sumber
+        kebenaran, jangan dihitung ulang di client.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shipping_address]
+              properties:
+                shipping_address:
+                  type: string
+                  minLength: 10
+                  maxLength: 500
+      responses:
+        "201":
+          description: Order berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: Cart kosong
+        "409":
+          description: >
+            Stok salah satu produk di cart tidak lagi mencukupi (dicek ulang
+            saat checkout, bukan cuma saat add-to-cart — stok bisa berubah
+            di antara keduanya)
+        "401":
+          description: Tidak ada/token akses tidak valid
+    get:
+      summary: Riwayat order milik user yang login (butuh permission order:read_own)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: "{items, meta}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission order:read_own
