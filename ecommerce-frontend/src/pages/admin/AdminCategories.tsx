@@ -114,7 +114,7 @@ export function AdminCategories() {
   const { data: categories, isLoading, isError } = useCategories();
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <div className="mx-auto max-w-3xl">
       <h1 className="text-heading-xl text-(--ink-primary) mb-6">Kelola Kategori</h1>
 
       <CreateCategoryForm />
@@ -136,6 +136,6 @@ export function AdminCategories() {
           </table>
         )}
       </div>
-    </main>
+    </div>
   );
 }

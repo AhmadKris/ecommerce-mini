@@ -16,11 +16,27 @@ import (
 // pre-checking (and racing) for availability.
 var ErrSlugTaken = errors.New("product slug already taken")
 
-// ProductFilter narrows ProductRepository.List. Page/Limit are expected to
-// already be normalized by the service.
+// Sort values ProductFilter.Sort accepts — anything else falls back to
+// SortNewest. Kept as a closed set (not a raw ORDER BY string) so a filter
+// value can never become a SQL-injection vector.
+const (
+	SortNewest    = "newest"
+	SortPriceAsc  = "price_asc"
+	SortPriceDesc = "price_desc"
+)
+
+var productSortColumns = map[string]string{
+	SortNewest:    "products.created_at DESC",
+	SortPriceAsc:  "products.price ASC",
+	SortPriceDesc: "products.price DESC",
+}
+
+// ProductFilter narrows ProductRepository.List. Page/Limit/Sort are
+// expected to already be normalized by the service.
 type ProductFilter struct {
 	CategorySlug string
 	Search       string
+	Sort         string
 	Page         int
 	Limit        int
 }
@@ -108,10 +124,15 @@ func (r *productRepository) List(ctx context.Context, filter ProductFilter) ([]m
 		return nil, 0, fmt.Errorf("repository: count products: %w", err)
 	}
 
+	orderBy, ok := productSortColumns[filter.Sort]
+	if !ok {
+		orderBy = productSortColumns[SortNewest]
+	}
+
 	var products []model.Product
 	err := r.baseQuery(ctx, filter).
 		Preload("Category").
-		Order("products.created_at DESC").
+		Order(orderBy).
 		Offset((filter.Page - 1) * filter.Limit).
 		Limit(filter.Limit).
 		Find(&products).Error

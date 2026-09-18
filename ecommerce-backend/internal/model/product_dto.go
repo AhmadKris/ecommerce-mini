@@ -32,11 +32,15 @@ type UpdateProductRequest struct {
 	ImageURL *string `json:"image_url" binding:"omitempty,max=500"`
 }
 
-// ProductListQuery binds GET /api/products query params. Page/Limit are
-// normalized (defaults + bounds) by the service, not here.
+// ProductListQuery binds GET /api/products query params. Page/Limit/Sort
+// are normalized (defaults + bounds + whitelist) by the service, not here —
+// an unrecognized Sort value falls back to the default rather than
+// rejecting the request with 400, since sort is a nice-to-have, not a
+// correctness-critical input.
 type ProductListQuery struct {
 	Category string `form:"category"`
 	Search   string `form:"search"`
+	Sort     string `form:"sort"`
 	Page     int    `form:"page"`
 	Limit    int    `form:"limit"`
 }

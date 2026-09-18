@@ -2,6 +2,7 @@ import { Outlet, Route, Routes } from "react-router-dom";
 
 import { AdminRoute } from "./components/AdminRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AdminLayout } from "./components/layout/AdminLayout";
 import { Header } from "./components/layout/Header";
 import { Home } from "./pages/Home";
 import { AdminCategories } from "./pages/admin/AdminCategories";
@@ -40,7 +41,9 @@ function App() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
         </Route>
-        <Route element={<AdminRoute />}>
+      </Route>
+      <Route element={<AdminRoute />}>
+        <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/products" element={<AdminProducts />} />
           <Route path="/admin/products/new" element={<ProductForm />} />

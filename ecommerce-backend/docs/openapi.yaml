@@ -406,6 +406,13 @@ paths:
           schema:
             type: string
           description: Dicocokkan terhadap nama produk (ILIKE).
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [newest, price_asc, price_desc]
+            default: newest
+          description: Nilai tidak dikenal fallback ke newest, bukan 400.
         - name: page
           in: query
           schema:

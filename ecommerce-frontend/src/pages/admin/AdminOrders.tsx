@@ -9,7 +9,7 @@ export function AdminOrders() {
   const { data, isLoading, isError } = useAdminOrders(page);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
+    <div className="mx-auto max-w-4xl">
       <h1 className="text-heading-xl text-(--ink-primary) mb-6">Semua Pesanan</h1>
 
       {isLoading && <p className="text-body-md text-(--ink-secondary)">Memuat pesanan...</p>}
@@ -74,6 +74,6 @@ export function AdminOrders() {
           </div>
         </>
       )}
-    </main>
+    </div>
   );
 }

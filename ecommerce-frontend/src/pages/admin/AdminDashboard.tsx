@@ -8,7 +8,7 @@ const links = [
 
 export function AdminDashboard() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <div className="mx-auto max-w-3xl">
       <h1 className="text-heading-xl text-(--ink-primary) mb-6">Admin</h1>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {links.map((link) => (
@@ -22,6 +22,6 @@ export function AdminDashboard() {
           </Link>
         ))}
       </div>
-    </main>
+    </div>
   );
 }

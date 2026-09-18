@@ -49,12 +49,12 @@ export function ProductForm() {
 
   if (isEditMode && !editingProduct) {
     return (
-      <main className="mx-auto max-w-xl px-6 py-16">
+      <div className="mx-auto max-w-xl">
         <p className="text-body-md text-(--ink-secondary)">
           Data produk tidak tersedia — buka form ini lewat tombol "Ubah" di daftar produk, bukan
           langsung lewat URL.
         </p>
-      </main>
+      </div>
     );
   }
 
@@ -63,7 +63,7 @@ export function ProductForm() {
   }
 
   return (
-    <main className="mx-auto max-w-xl px-6 py-16">
+    <div className="mx-auto max-w-xl">
       <h1 className="text-heading-xl text-(--ink-primary) mb-6">
         {isEditMode ? "Ubah Produk" : "Tambah Produk"}
       </h1>
@@ -120,6 +120,6 @@ export function ProductForm() {
           {mutation.isPending ? "Menyimpan..." : "Simpan"}
         </Button>
       </form>
-    </main>
+    </div>
   );
 }

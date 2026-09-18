@@ -11,7 +11,7 @@ export function AdminProducts() {
   const navigate = useNavigate();
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
+    <div className="mx-auto max-w-4xl">
       <div className="flex items-center justify-between">
         <h1 className="text-heading-xl text-(--ink-primary)">Kelola Produk</h1>
         <Link to="/admin/products/new">
@@ -90,6 +90,6 @@ export function AdminProducts() {
           </div>
         </>
       )}
-    </main>
+    </div>
   );
 }

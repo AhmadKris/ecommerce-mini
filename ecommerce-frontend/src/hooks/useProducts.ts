@@ -7,6 +7,7 @@ import type { Product } from "../types/product";
 export interface ProductFilters {
   category?: string;
   search?: string;
+  sort?: "newest" | "price_asc" | "price_desc";
   page?: number;
   limit?: number;
 }

@@ -175,6 +175,7 @@ func (s *ProductService) List(ctx context.Context, query model.ProductListQuery)
 	products, total, err := s.productRepo.List(ctx, repository.ProductFilter{
 		CategorySlug: query.Category,
 		Search:       query.Search,
+		Sort:         query.Sort,
 		Page:         page,
 		Limit:        limit,
 	})

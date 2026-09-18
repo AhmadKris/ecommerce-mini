@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { ProductList } from "./ProductList";
 import { config } from "../../lib/config";
@@ -8,6 +9,7 @@ import { server } from "../../test/msw-server";
 import { renderWithProviders } from "../../test/test-utils";
 
 const productsUrl = `${config.apiBaseUrl}/products`;
+const categoriesUrl = `${config.apiBaseUrl}/categories`;
 
 const sampleProduct = {
   id: 1,
@@ -20,6 +22,14 @@ const sampleProduct = {
   image_url: "",
   created_at: "2026-01-01T00:00:00Z",
 };
+
+beforeEach(() => {
+  server.use(
+    http.get(categoriesUrl, () =>
+      HttpResponse.json({ success: true, data: { items: [{ id: 1, name: "Minuman", slug: "minuman" }] } }),
+    ),
+  );
+});
 
 describe("ProductList page", () => {
   it("renders the product grid once loaded", async () => {
@@ -35,6 +45,50 @@ describe("ProductList page", () => {
     renderWithProviders(<ProductList />);
 
     expect(await screen.findByText("Kopi Susu Gula Aren")).toBeInTheDocument();
+  });
+
+  it("renders category pills and sends the selected category to the API", async () => {
+    let receivedCategory: string | null = null;
+    server.use(
+      http.get(productsUrl, ({ request }) => {
+        receivedCategory = new URL(request.url).searchParams.get("category");
+        return HttpResponse.json({
+          success: true,
+          data: { items: [sampleProduct], meta: { page: 1, limit: 10, total: 1, total_pages: 1 } },
+        });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(<ProductList />);
+
+    const categoryPill = await screen.findByRole("button", { name: "Minuman" });
+    await user.click(categoryPill);
+
+    await screen.findByText("Kopi Susu Gula Aren");
+    expect(receivedCategory).toBe("minuman");
+  });
+
+  it("sends the selected sort option to the API", async () => {
+    let receivedSort: string | null = null;
+    server.use(
+      http.get(productsUrl, ({ request }) => {
+        receivedSort = new URL(request.url).searchParams.get("sort");
+        return HttpResponse.json({
+          success: true,
+          data: { items: [sampleProduct], meta: { page: 1, limit: 10, total: 1, total_pages: 1 } },
+        });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(<ProductList />);
+    await screen.findByText("Kopi Susu Gula Aren");
+
+    await user.selectOptions(screen.getByLabelText(/urutkan/i), "price_asc");
+
+    await screen.findByText("Kopi Susu Gula Aren");
+    expect(receivedSort).toBe("price_asc");
   });
 
   it("shows an empty state when there are no products", async () => {
