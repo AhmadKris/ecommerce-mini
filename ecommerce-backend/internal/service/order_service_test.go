@@ -4,7 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"ecommerce-backend/internal/apperror"
 	"ecommerce-backend/internal/model"
+	"ecommerce-backend/internal/testutil"
 )
 
 type fakeOrderRepo struct {
@@ -42,6 +44,8 @@ func (r *fakeOrderRepo) UpdateStatus(_ context.Context, id uint, status string) 
 }
 
 func TestOrderService_UpdateStatus_AllowsValidForwardTransitions(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		from, to string
 	}{
@@ -53,56 +57,64 @@ func TestOrderService_UpdateStatus_AllowsValidForwardTransitions(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		orderRepo := newFakeOrderRepo(&model.Order{ID: 1, Status: tc.from})
-		audit := &fakeAuditLogRepo{}
-		svc := NewOrderService(orderRepo, audit)
+		t.Run(tc.from+"->"+tc.to, func(t *testing.T) {
+			t.Parallel()
 
-		updated, err := svc.UpdateStatus(context.Background(), 42, 1, tc.to)
-		if err != nil {
-			t.Errorf("%s -> %s: unexpected error: %v", tc.from, tc.to, err)
-			continue
-		}
-		if updated.Status != tc.to {
-			t.Errorf("%s -> %s: Status = %q, want %q", tc.from, tc.to, updated.Status, tc.to)
-		}
-		if len(audit.entries) != 1 || audit.entries[0].Action != "order.status_change" {
-			t.Errorf("%s -> %s: expected 1 order.status_change audit entry, got %+v", tc.from, tc.to, audit.entries)
-		}
+			orderRepo := newFakeOrderRepo(&model.Order{ID: 1, Status: tc.from})
+			audit := &fakeAuditLogRepo{}
+			svc := NewOrderService(orderRepo, audit)
+
+			updated, err := svc.UpdateStatus(context.Background(), 42, 1, tc.to)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if updated.Status != tc.to {
+				t.Errorf("Status = %q, want %q", updated.Status, tc.to)
+			}
+			if len(audit.entries) != 1 || audit.entries[0].Action != "order.status_change" {
+				t.Errorf("expected 1 order.status_change audit entry, got %+v", audit.entries)
+			}
+		})
 	}
 }
 
 func TestOrderService_UpdateStatus_RejectsInvalidTransitions(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
+		name     string
 		from, to string
 	}{
-		{model.OrderStatusDelivered, model.OrderStatusPending}, // terminal state
-		{model.OrderStatusCancelled, model.OrderStatusPaid},    // terminal state
-		{model.OrderStatusShipped, model.OrderStatusCancelled}, // can't cancel once shipped
-		{model.OrderStatusPending, model.OrderStatusShipped},   // can't skip stages
-		{model.OrderStatusPending, model.OrderStatusDelivered}, // can't skip stages
+		{"terminal state delivered", model.OrderStatusDelivered, model.OrderStatusPending},
+		{"terminal state cancelled", model.OrderStatusCancelled, model.OrderStatusPaid},
+		{"cannot cancel once shipped", model.OrderStatusShipped, model.OrderStatusCancelled},
+		{"cannot skip stages (pending->shipped)", model.OrderStatusPending, model.OrderStatusShipped},
+		{"cannot skip stages (pending->delivered)", model.OrderStatusPending, model.OrderStatusDelivered},
 	}
 
 	for _, tc := range cases {
-		orderRepo := newFakeOrderRepo(&model.Order{ID: 1, Status: tc.from})
-		audit := &fakeAuditLogRepo{}
-		svc := NewOrderService(orderRepo, audit)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		_, err := svc.UpdateStatus(context.Background(), 42, 1, tc.to)
-		if err == nil {
-			t.Errorf("%s -> %s: expected error, got nil", tc.from, tc.to)
-		}
-		if len(audit.entries) != 0 {
-			t.Errorf("%s -> %s: rejected transition must not write an audit entry, got %+v", tc.from, tc.to, audit.entries)
-		}
+			orderRepo := newFakeOrderRepo(&model.Order{ID: 1, Status: tc.from})
+			audit := &fakeAuditLogRepo{}
+			svc := NewOrderService(orderRepo, audit)
+
+			_, err := svc.UpdateStatus(context.Background(), 42, 1, tc.to)
+			testutil.AssertAppError(t, err, apperror.CodeConflict, 409)
+			if len(audit.entries) != 0 {
+				t.Errorf("rejected transition must not write an audit entry, got %+v", audit.entries)
+			}
+		})
 	}
 }
 
 func TestOrderService_UpdateStatus_NotFound(t *testing.T) {
+	t.Parallel()
+
 	orderRepo := newFakeOrderRepo()
 	svc := NewOrderService(orderRepo, &fakeAuditLogRepo{})
 
 	_, err := svc.UpdateStatus(context.Background(), 42, 999, model.OrderStatusPaid)
-	if err == nil {
-		t.Fatal("expected error for nonexistent order, got nil")
-	}
+	testutil.AssertAppError(t, err, apperror.CodeNotFound, 404)
 }

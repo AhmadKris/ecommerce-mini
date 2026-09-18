@@ -22,14 +22,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # go-version-file, not a hardcoded string — a hardcoded version here
+      # silently drifts out of sync the next time go.mod's `go` directive is
+      # bumped (exactly what happened: govulncheck's stdlib-CVE fix bumped
+      # go.mod to 1.26.6, this workflow stayed pinned at 1.26.4, and the
+      # mismatch broke the lint job). Reading it from go.mod means it can't
+      # drift again.
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.4"
-      # Pinned action version so a golangci-lint-action bump can't silently
-      # change lint results between local runs and CI.
+          go-version-file: ecommerce-backend/go.mod
+      # Both the action AND the lint tool version pinned — `version: latest`
+      # here would silently drift from whatever's installed locally
+      # (currently v2.13.2), the exact inconsistency this fix is about.
+      # Bump this deliberately, in the same commit as a local
+      # golangci-lint upgrade, not automatically.
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.13.2
           working-directory: ecommerce-backend
 
   test:
@@ -38,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.4"
+          go-version-file: ecommerce-backend/go.mod
       # -race here specifically because local dev on this project's Windows
       # box can't always run it (no C compiler) — ubuntu-latest ships gcc,
       # so CI is where races actually get caught, not optional here.
@@ -57,7 +66,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.4"
+          go-version-file: ecommerce-backend/go.mod
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   build:
