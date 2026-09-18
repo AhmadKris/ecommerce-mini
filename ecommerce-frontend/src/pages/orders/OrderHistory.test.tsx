@@ -40,7 +40,17 @@ describe("OrderHistory page", () => {
                 shipping_cost: 25000,
                 shipping_address: "Jl. Merdeka No. 1",
                 created_at: "2026-01-01T00:00:00Z",
-                items: [{ id: 1, order_id: 7, product_id: 1, quantity: 1, price_at_purchase: 18000, product: {} }],
+                items: [
+                  {
+                    id: 1,
+                    order_id: 7,
+                    product_id: 1,
+                    product_name: "Kopi Susu Gula Aren",
+                    quantity: 1,
+                    price_at_purchase: 18000,
+                    product: {},
+                  },
+                ],
               },
             ],
             meta: { page: 1, limit: 10, total: 1, total_pages: 1 },

@@ -77,6 +77,45 @@ func TestOrderRepository_Checkout_ConcurrentRequestsDoNotOversell(t *testing.T) 
 	}
 }
 
+// TestOrderRepository_Checkout_SnapshotsProductName is a regression test:
+// OrderItem.ProductName must be captured at checkout time and stay
+// unchanged even if the product is renamed afterwards — previously only
+// PriceAtPurchase was snapshotted, so a renamed/deleted product silently
+// rewrote historical order data (see .claude/CLAUDE.md Known Issues).
+func TestOrderRepository_Checkout_SnapshotsProductName(t *testing.T) {
+	db := testdb.New(t)
+	orderRepo := repository.NewOrderRepository(db)
+	productRepo := repository.NewProductRepository(db)
+
+	productID := seedCategoryAndProduct(t, db, 5)
+	userID := seedUserWithCartItem(t, db, "renamer@example.com", productID, 1)
+
+	order, err := orderRepo.Checkout(context.Background(), userID, "Jl. Snapshot No. 1")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+	if order.Items[0].ProductName != "Kopi Susu" {
+		t.Fatalf("ProductName = %q, want %q", order.Items[0].ProductName, "Kopi Susu")
+	}
+
+	product, err := productRepo.FindByID(context.Background(), productID)
+	if err != nil || product == nil {
+		t.Fatalf("FindByID: %v", err)
+	}
+	product.Name = "Renamed After Purchase"
+	if err := productRepo.Update(context.Background(), product); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	var reloaded model.OrderItem
+	if err := db.First(&reloaded, order.Items[0].ID).Error; err != nil {
+		t.Fatalf("reload order item: %v", err)
+	}
+	if reloaded.ProductName != "Kopi Susu" {
+		t.Errorf("ProductName after product rename = %q, want unchanged %q", reloaded.ProductName, "Kopi Susu")
+	}
+}
+
 // TestOrderRepository_Checkout_EmptyCartReturnsError checks the guard that
 // exists purely to be race-safe with the concurrent case above: a user with
 // no cart items at all must never reach the stock-locking logic.

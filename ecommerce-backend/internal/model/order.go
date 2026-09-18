@@ -8,8 +8,8 @@ import "time"
 const OrderStatusPending = "pending"
 
 // Order is a completed checkout. TotalAmount and each OrderItem's
-// PriceAtPurchase are snapshotted at checkout time — they never change even
-// if the product's live price does later.
+// PriceAtPurchase/ProductName are snapshotted at checkout time — they never
+// change even if the product's live price/name does later.
 type Order struct {
 	ID              uint      `gorm:"primaryKey" json:"id"`
 	UserID          uint      `json:"user_id"`
@@ -22,12 +22,18 @@ type Order struct {
 	Items []OrderItem `json:"items,omitempty"`
 }
 
-// OrderItem is one product line of an order, with the price snapshotted at
-// purchase time.
+// OrderItem is one product line of an order, with price and name
+// snapshotted at purchase time. ProductName is what the client should
+// display — never Product.Name — so a later rename or deletion of the
+// product can't silently rewrite historical order data (see
+// .claude/CLAUDE.md Known Issues for the bug this fixes). Product is still
+// preloaded for fields that are fine to show live (e.g. current image_url),
+// but Product itself may be nil if the product was hard-deleted.
 type OrderItem struct {
 	ID              uint    `gorm:"primaryKey" json:"id"`
 	OrderID         uint    `json:"order_id"`
 	ProductID       uint    `json:"product_id"`
+	ProductName     string  `json:"product_name"`
 	Quantity        int     `json:"quantity"`
 	PriceAtPurchase float64 `json:"price_at_purchase"`
 

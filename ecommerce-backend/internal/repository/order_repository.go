@@ -101,6 +101,7 @@ func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAdd
 			order.TotalAmount += product.Price * float64(cartItem.Quantity)
 			orderItems = append(orderItems, model.OrderItem{
 				ProductID:       product.ID,
+				ProductName:     product.Name,
 				Quantity:        cartItem.Quantity,
 				PriceAtPurchase: product.Price,
 				Product:         &product,
