@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -28,17 +31,18 @@ var slugInvalidChars = regexp.MustCompile(`[^a-z0-9]+`)
 type ProductService struct {
 	productRepo  repository.ProductRepository
 	categoryRepo repository.CategoryRepository
+	auditLogRepo repository.AuditLogRepository
 }
 
 // NewProductService builds a ProductService with its dependencies.
-func NewProductService(productRepo repository.ProductRepository, categoryRepo repository.CategoryRepository) *ProductService {
-	return &ProductService{productRepo: productRepo, categoryRepo: categoryRepo}
+func NewProductService(productRepo repository.ProductRepository, categoryRepo repository.CategoryRepository, auditLogRepo repository.AuditLogRepository) *ProductService {
+	return &ProductService{productRepo: productRepo, categoryRepo: categoryRepo, auditLogRepo: auditLogRepo}
 }
 
 // Create validates the target category exists, then persists the product
 // under a slug derived from its name — retrying with a numeric suffix if
 // that slug is already taken by another (non-deleted) product.
-func (s *ProductService) Create(ctx context.Context, req model.CreateProductRequest) (*model.Product, error) {
+func (s *ProductService) Create(ctx context.Context, actorID uint, req model.CreateProductRequest) (*model.Product, error) {
 	if err := s.assertCategoryExists(ctx, req.CategoryID); err != nil {
 		return nil, err
 	}
@@ -61,6 +65,9 @@ func (s *ProductService) Create(ctx context.Context, req model.CreateProductRequ
 
 		err := s.productRepo.Create(ctx, product)
 		if err == nil {
+			s.recordAudit(ctx, actorID, "product.create", product.ID, map[string]any{
+				"name": product.Name, "price": product.Price, "stock": product.Stock,
+			})
 			return product, nil
 		}
 		if errors.Is(err, repository.ErrSlugTaken) {
@@ -75,7 +82,7 @@ func (s *ProductService) Create(ctx context.Context, req model.CreateProductRequ
 // Update applies only the fields present in req (see UpdateProductRequest's
 // pointer fields) to the existing product. The slug is never changed here —
 // it's assigned once at creation so published product URLs stay stable.
-func (s *ProductService) Update(ctx context.Context, id uint, req model.UpdateProductRequest) (*model.Product, error) {
+func (s *ProductService) Update(ctx context.Context, actorID uint, id uint, req model.UpdateProductRequest) (*model.Product, error) {
 	product, err := s.productRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, apperror.Internal(fmt.Errorf("service: update product: %w", err))
@@ -84,31 +91,41 @@ func (s *ProductService) Update(ctx context.Context, id uint, req model.UpdatePr
 		return nil, apperror.NotFound("Produk tidak ditemukan", nil)
 	}
 
+	changes := map[string]any{}
+
 	if req.CategoryID != nil {
 		if err := s.assertCategoryExists(ctx, *req.CategoryID); err != nil {
 			return nil, err
 		}
 		product.CategoryID = *req.CategoryID
+		changes["category_id"] = *req.CategoryID
 	}
 	if req.Name != nil {
 		product.Name = *req.Name
+		changes["name"] = *req.Name
 	}
 	if req.Description != nil {
 		product.Description = *req.Description
 	}
 	if req.Price != nil {
 		product.Price = *req.Price
+		changes["price"] = *req.Price
 	}
 	if req.Stock != nil {
 		product.Stock = *req.Stock
+		changes["stock"] = *req.Stock
 	}
 	if req.ImageURL != nil {
+		if *req.ImageURL != "" && !isValidURL(*req.ImageURL) {
+			return nil, apperror.Validation("Data produk tidak valid", []string{"image_url: url"})
+		}
 		product.ImageURL = *req.ImageURL
 	}
 
 	if err := s.productRepo.Update(ctx, product); err != nil {
 		return nil, apperror.Internal(fmt.Errorf("service: update product: %w", err))
 	}
+	s.recordAudit(ctx, actorID, "product.update", product.ID, changes)
 	return product, nil
 }
 
@@ -152,6 +169,28 @@ func (s *ProductService) List(ctx context.Context, query model.ProductListQuery)
 	return products, model.NewMeta(page, limit, total), nil
 }
 
+// recordAudit is best-effort: a failed audit write logs the failure but
+// never fails the product write that triggered it — the write already
+// succeeded, and losing an audit entry is preferable to telling an admin
+// their product update failed when it didn't.
+func (s *ProductService) recordAudit(ctx context.Context, actorID uint, action string, resourceID uint, metadata map[string]any) {
+	payload, err := json.Marshal(metadata)
+	if err != nil {
+		slog.Error("audit log: marshal metadata failed", slog.Any("err", err), slog.String("action", action))
+		return
+	}
+	entry := &model.AuditLog{
+		ActorID:    actorID,
+		Action:     action,
+		Resource:   "product",
+		ResourceID: resourceID,
+		Metadata:   string(payload),
+	}
+	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
+		slog.Error("audit log: write failed", slog.Any("err", err), slog.String("action", action))
+	}
+}
+
 func (s *ProductService) assertCategoryExists(ctx context.Context, categoryID uint) error {
 	category, err := s.categoryRepo.FindByID(ctx, categoryID)
 	if err != nil {
@@ -169,4 +208,13 @@ func (s *ProductService) assertCategoryExists(ctx context.Context, categoryID ui
 func generateSlug(name string) string {
 	slug := slugInvalidChars.ReplaceAllString(strings.ToLower(name), "-")
 	return strings.Trim(slug, "-")
+}
+
+// isValidURL reports whether raw parses as an absolute URL with a scheme
+// and host (e.g. "https://example.com/x.jpg") — the same shape the
+// validator's `url` tag checks, applied manually here because that tag's
+// `omitempty` doesn't skip a non-nil pointer to "" (see UpdateProductRequest).
+func isValidURL(raw string) bool {
+	parsed, err := url.ParseRequestURI(raw)
+	return err == nil && parsed.Scheme != "" && parsed.Host != ""
 }

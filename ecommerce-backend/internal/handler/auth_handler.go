@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ecommerce-backend/internal/apperror"
+	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/service"
 )
@@ -57,6 +58,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    tokens,
+	})
+}
+
+// Me handles GET /api/auth/me — the authenticated caller's own profile.
+func (h *AuthHandler) Me(c *gin.Context) {
+	userID, _ := middleware.UserIDFromContext(c)
+
+	user, err := h.authService.Me(c.Request.Context(), userID)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    model.ToUserResponse(user),
 	})
 }
 

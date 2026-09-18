@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -30,6 +31,7 @@ const flatShippingCost = 25000
 type OrderRepository interface {
 	Checkout(ctx context.Context, userID uint, shippingAddress string) (*model.Order, error)
 	ListByUserID(ctx context.Context, userID uint, page, limit int) ([]model.Order, int64, error)
+	ListAll(ctx context.Context, page, limit int) ([]model.Order, int64, error)
 }
 
 type orderRepository struct {
@@ -127,6 +129,28 @@ func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAdd
 			return err
 		}
 
+		// Written in the same transaction as the stock decrement, not as a
+		// best-effort side effect afterwards — an audit trail that could
+		// silently go missing on a partial failure defeats its own purpose.
+		auditMetadata, err := json.Marshal(map[string]any{
+			"total_amount":  order.TotalAmount,
+			"shipping_cost": order.ShippingCost,
+			"item_count":    len(orderItems),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal audit metadata: %w", err)
+		}
+		auditLog := model.AuditLog{
+			ActorID:    userID,
+			Action:     "order.checkout",
+			Resource:   "order",
+			ResourceID: order.ID,
+			Metadata:   string(auditMetadata),
+		}
+		if err := tx.Create(&auditLog).Error; err != nil {
+			return err
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -152,6 +176,29 @@ func (r *orderRepository) ListByUserID(ctx context.Context, userID uint, page, l
 		Find(&orders).Error
 	if err != nil {
 		return nil, 0, fmt.Errorf("repository: list orders: %w", err)
+	}
+
+	return orders, total, nil
+}
+
+// ListAll returns a page of every order across all users, newest first —
+// backs the admin order list (order:read_all), unlike ListByUserID which is
+// scoped to one customer's own history.
+func (r *orderRepository) ListAll(ctx context.Context, page, limit int) ([]model.Order, int64, error) {
+	var total int64
+	if err := r.db.WithContext(ctx).Model(&model.Order{}).Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("repository: count all orders: %w", err)
+	}
+
+	var orders []model.Order
+	err := r.db.WithContext(ctx).
+		Preload("Items.Product").
+		Order("created_at DESC").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Find(&orders).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("repository: list all orders: %w", err)
 	}
 
 	return orders, total, nil

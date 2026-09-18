@@ -13,15 +13,22 @@ Go 1.26, Gin, GORM + PostgreSQL, Redis, JWT (`golang-jwt/jwt/v5`), Docker,
 ## Fitur
 
 - **Auth & RBAC** — register/login dengan access + refresh token, role
-  `admin`/`customer`, permission per-endpoint lewat middleware.
+  `admin`/`customer`, permission per-endpoint lewat middleware, `GET /auth/me`
+  untuk profil sendiri.
 - **Produk & kategori** — list dengan pagination, detail via slug, CRUD
-  produk (admin only).
+  produk + CRUD kategori (admin only, kategori ditolak dihapus kalau masih
+  dipakai produk).
 - **Keranjang** — tambah/ubah/hapus item, tervalidasi terhadap stok.
 - **Checkout & order** — satu transaction atomic: cek stok, kurangi stok
   (row lock `SELECT ... FOR UPDATE`), buat order + order items + payment,
   kosongkan cart. Harga produk di-snapshot per item, ongkos kirim dihitung
-  dan dipersist di `orders.shipping_cost`.
-- **Riwayat order** — daftar order milik user yang login, dengan pagination.
+  dan dipersist di `orders.shipping_cost`. Idempotency key opsional
+  (header `Idempotency-Key`) mencegah order dobel kalau client retry.
+- **Riwayat order** — daftar order milik user yang login (dengan pagination),
+  atau seluruh user untuk admin (`GET /admin/orders`).
+- **Rate limiting** — `/auth/*` dibatasi 10 request/menit per IP.
+- **Audit log** — action sensitif (checkout, create/update/delete produk &
+  kategori) tercatat di tabel `audit_logs`.
 
 ## Setup
 
@@ -76,7 +83,8 @@ Spesifikasi lengkap ada di [`docs/openapi.yaml`](docs/openapi.yaml).
 ## Testing
 
 ```
-make test              # semua test
+make test              # semua test (unit, fake repository, tanpa Docker)
+make test-integration  # + integration test testcontainers-go (butuh Docker daemon)
 make test-coverage     # test + coverage report
 make lint              # golangci-lint (butuh golangci-lint terinstall)
 ```
@@ -92,17 +100,19 @@ internal/
   repository/        Akses data (GORM)
   service/           Business logic
   handler/           HTTP handler (Gin)
-  middleware/         Auth, RBAC, CORS, dll
+  middleware/         Auth, RBAC, CORS, rate limit, idempotency, dll
   router/            Registrasi route
   apperror/          Error terstruktur (code, message, HTTP status)
+  testdb/            Helper testcontainers-go untuk integration test
 migrations/          SQL migration (golang-migrate)
 docs/openapi.yaml    Spesifikasi API
 ```
 
 ## Status
 
-Backend sudah menyelesaikan fitur inti: scaffold, migration, auth + RBAC,
-CRUD produk, keranjang, checkout/order. Belum ada: rate limiting, audit log,
-integration test otomatis untuk repository layer, panel admin di sisi API
-(endpoint yang sudah ada cukup untuk dikonsumsi admin panel, tapi belum ada
-endpoint manajemen user/role).
+Fase 1 (Foundation) dan sebagian besar Fase 2 (production hardening) sudah
+selesai: scaffold, auth + RBAC, CRUD produk & kategori, keranjang,
+checkout/order (idempotency key, audit log), rate limiting, `/auth/me`,
+admin order list, integration test testcontainers-go. Belum ada: circuit
+breaker (belum ada payment gateway eksternal untuk dilindungi — lihat Known
+Issues), endpoint manajemen user/role.

@@ -23,7 +23,13 @@ type UpdateProductRequest struct {
 	Price       *float64 `json:"price" binding:"omitempty,gte=0"`
 	Stock       *int     `json:"stock" binding:"omitempty,gte=0"`
 	CategoryID  *uint    `json:"category_id" binding:"omitempty"`
-	ImageURL    *string  `json:"image_url" binding:"omitempty,url,max=500"`
+	// No `url` tag here (unlike CreateProductRequest's ImageURL) — the
+	// validator's `omitempty` only skips a *nil* pointer, not a non-nil
+	// pointer to "" (see hasValue in go-playground/validator), so a client
+	// explicitly clearing the image (image_url: "") would otherwise fail
+	// url-format validation on an empty string. Checked manually in
+	// ProductService.Update instead, only when non-empty.
+	ImageURL *string `json:"image_url" binding:"omitempty,max=500"`
 }
 
 // ProductListQuery binds GET /api/products query params. Page/Limit are

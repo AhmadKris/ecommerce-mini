@@ -58,3 +58,26 @@ func (s *OrderService) List(ctx context.Context, userID uint, query model.OrderL
 
 	return orders, model.NewMeta(page, limit, total), nil
 }
+
+// ListAll returns a page of every order across all users, for the admin
+// order list — same pagination normalization as List.
+func (s *OrderService) ListAll(ctx context.Context, query model.OrderListQuery) ([]model.Order, model.Meta, error) {
+	page := query.Page
+	if page < 1 {
+		page = defaultPage
+	}
+	limit := query.Limit
+	if limit < 1 {
+		limit = defaultLimit
+	}
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+
+	orders, total, err := s.orderRepo.ListAll(ctx, page, limit)
+	if err != nil {
+		return nil, model.Meta{}, apperror.Internal(fmt.Errorf("service: list all orders: %w", err))
+	}
+
+	return orders, model.NewMeta(page, limit, total), nil
+}

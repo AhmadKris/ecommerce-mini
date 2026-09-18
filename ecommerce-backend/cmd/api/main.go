@@ -65,10 +65,15 @@ func main() {
 	authService := service.NewAuthService(userRepo, roleRepo, tokenManager, refreshBlacklist, cfg.BcryptCost)
 	authHandler := handler.NewAuthHandler(authService)
 
+	auditLogRepo := repository.NewAuditLogRepository(db)
+
 	productRepo := repository.NewProductRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
-	productService := service.NewProductService(productRepo, categoryRepo)
+	productService := service.NewProductService(productRepo, categoryRepo, auditLogRepo)
 	productHandler := handler.NewProductHandler(productService)
+
+	categoryService := service.NewCategoryService(categoryRepo, auditLogRepo)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
 
 	cartRepo := repository.NewCartRepository(db)
 	cartService := service.NewCartService(cartRepo, productRepo)
@@ -86,6 +91,7 @@ func main() {
 		Tokens:             tokenManager,
 		AuthHandler:        authHandler,
 		ProductHandler:     productHandler,
+		CategoryHandler:    categoryHandler,
 		CartHandler:        cartHandler,
 		OrderHandler:       orderHandler,
 	})

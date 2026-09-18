@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ecommerce-backend/internal/apperror"
+	"ecommerce-backend/internal/middleware"
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/service"
 )
@@ -63,7 +64,8 @@ func (h *ProductHandler) Create(c *gin.Context) {
 		return
 	}
 
-	product, err := h.productService.Create(c.Request.Context(), req)
+	actorID, _ := middleware.UserIDFromContext(c)
+	product, err := h.productService.Create(c.Request.Context(), actorID, req)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -86,7 +88,8 @@ func (h *ProductHandler) Update(c *gin.Context) {
 		return
 	}
 
-	product, err := h.productService.Update(c.Request.Context(), uint(id), req)
+	actorID, _ := middleware.UserIDFromContext(c)
+	product, err := h.productService.Update(c.Request.Context(), actorID, uint(id), req)
 	if err != nil {
 		_ = c.Error(err)
 		return

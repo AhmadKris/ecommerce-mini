@@ -57,3 +57,19 @@ func (h *OrderHandler) List(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": orders, "meta": meta}})
 }
+
+// ListAll handles GET /api/admin/orders.
+func (h *OrderHandler) ListAll(c *gin.Context) {
+	var query model.OrderListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		_ = c.Error(apperror.Validation("Parameter pencarian order tidak valid", bindingErrors(err)))
+		return
+	}
+
+	orders, meta, err := h.orderService.ListAll(c.Request.Context(), query)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": orders, "meta": meta}})
+}

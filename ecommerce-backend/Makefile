@@ -1,10 +1,17 @@
-.PHONY: run test test-coverage lint migrate-up migrate-down migrate-create docker-build docker-up docker-down
+.PHONY: run test test-integration test-coverage lint migrate-up migrate-down migrate-create docker-build docker-up docker-down
 
 run:
 	go run ./cmd/api
 
 test:
 	go test ./...
+
+# Spins up real Postgres containers via testcontainers-go — needs a working
+# Docker daemon, takes longer than `test`, and is not part of the default
+# suite. Covers what curl-against-Docker used to verify manually: the
+# checkout race condition and cross-user cart ownership.
+test-integration:
+	go test -tags=integration ./...
 
 test-coverage:
 	go test ./... -coverprofile=coverage.out

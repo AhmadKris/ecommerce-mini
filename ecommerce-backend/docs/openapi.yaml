@@ -57,7 +57,10 @@ paths:
           description: A dependency (database/Redis) is unavailable
   /api/auth/register:
     post:
-      summary: Registrasi customer baru (role customer otomatis, tidak bisa admin)
+      summary: >
+        Registrasi customer baru (role customer otomatis, tidak bisa admin).
+        Seluruh /api/auth/* dibatasi 10 request/menit per IP (lihat 429 di
+        bawah) — mencegah brute-force/credential-stuffing.
       requestBody:
         required: true
         content:
@@ -97,6 +100,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Lebih dari 10 request/menit dari IP yang sama
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/auth/login:
     post:
       summary: Login dan menerima access + refresh token
@@ -122,6 +131,12 @@ paths:
                 $ref: "#/components/schemas/SuccessEnvelope"
         "401":
           description: Email atau password salah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Lebih dari 10 request/menit dari IP yang sama
           content:
             application/json:
               schema:
@@ -155,6 +170,112 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /api/auth/me:
+    get:
+      summary: Profil user yang sedang login (id, name, email)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profil berhasil diambil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+  /api/categories:
+    get:
+      summary: List semua kategori (public, tidak dipaginasi — jumlahnya kecil)
+      responses:
+        "200":
+          description: "{items}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /api/admin/categories:
+    post:
+      summary: Buat kategori baru (butuh permission category:create)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 255
+      responses:
+        "201":
+          description: Kategori berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission category:create
+  /api/admin/categories/{id}:
+    put:
+      summary: Ubah nama kategori (butuh permission category:update, slug ikut diregenerasi)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 255
+      responses:
+        "200":
+          description: Kategori berhasil diubah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "404":
+          description: Kategori tidak ditemukan
+        "409":
+          description: Nama baru menghasilkan slug yang sudah dipakai kategori lain
+    delete:
+      summary: >
+        Hapus kategori (butuh permission category:delete). Ditolak 409 kalau
+        masih ada produk yang mereferensikannya (products.category_id ON
+        DELETE RESTRICT) — hapus/pindahkan produknya dulu.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Kategori berhasil dihapus
+        "404":
+          description: Kategori tidak ditemukan
+        "409":
+          description: Kategori masih dipakai oleh produk yang ada
   /api/products:
     get:
       summary: List produk (public), dengan filter kategori/pencarian dan pagination
@@ -424,6 +545,19 @@ paths:
         kebenaran, jangan dihitung ulang di client.
       security:
         - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >
+            Opsional. Kirim UUID unik per percobaan checkout — request
+            berikutnya dengan key yang sama (dari user yang sama) dalam 24
+            jam akan me-replay response order yang pertama alih-alih
+            membuat order baru (response header Idempotent-Replay: true).
+            Mencegah double-order kalau client retry setelah koneksi
+            terputus.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -438,7 +572,7 @@ paths:
                   maxLength: 500
       responses:
         "201":
-          description: Order berhasil dibuat
+          description: Order berhasil dibuat (atau di-replay dari Idempotency-Key sebelumnya)
           content:
             application/json:
               schema:
@@ -478,3 +612,30 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission order:read_own
+  /api/admin/orders:
+    get:
+      summary: Riwayat order SELURUH user (admin, butuh permission order:read_all)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: "{items, meta}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission order:read_all

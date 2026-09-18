@@ -138,6 +138,18 @@ func (s *AuthService) Refresh(ctx context.Context, req model.RefreshRequest) (*m
 	return s.issueTokenPair(user)
 }
 
+// Me returns the currently authenticated user's own profile.
+func (s *AuthService) Me(ctx context.Context, userID uint) (*model.User, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, apperror.Internal(fmt.Errorf("service: me: %w", err))
+	}
+	if user == nil {
+		return nil, apperror.NotFound("User tidak ditemukan", nil)
+	}
+	return user, nil
+}
+
 func (s *AuthService) issueTokenPair(user *model.User) (*model.AuthTokens, error) {
 	accessToken, err := s.tokens.IssueAccessToken(user.ID, user.RoleNames(), user.PermissionCodes())
 	if err != nil {
