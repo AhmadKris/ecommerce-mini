@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"gorm.io/gorm"
+
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/repository"
 )
@@ -26,6 +28,14 @@ func (r *fakeProductRepo) Create(_ context.Context, product *model.Product) erro
 
 func (r *fakeProductRepo) Update(_ context.Context, product *model.Product) error {
 	r.products[product.ID] = product
+	return nil
+}
+
+func (r *fakeProductRepo) Delete(_ context.Context, id uint) error {
+	if _, ok := r.products[id]; !ok {
+		return gorm.ErrRecordNotFound
+	}
+	delete(r.products, id)
 	return nil
 }
 
@@ -165,5 +175,46 @@ func TestProductService_Update_RejectsMalformedImageURL(t *testing.T) {
 	_, err = svc.Update(context.Background(), 1, product.ID, model.UpdateProductRequest{ImageURL: &notAURL})
 	if err == nil {
 		t.Fatal("Update with malformed ImageURL returned no error, want validation error")
+	}
+}
+
+func TestProductService_Delete_RecordsAuditLogAndRemovesProduct(t *testing.T) {
+	svc, audit := newTestProductService()
+
+	product, err := svc.Create(context.Background(), 1, model.CreateProductRequest{
+		Name: "Kopi Susu", Price: 18000, Stock: 10, CategoryID: 1,
+	})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	audit.entries = nil // isolate Delete's own audit entry
+
+	if err := svc.Delete(context.Background(), 42, product.ID); err != nil {
+		t.Fatalf("Delete returned error: %v", err)
+	}
+
+	found, err := svc.productRepo.FindByID(context.Background(), product.ID)
+	if err != nil {
+		t.Fatalf("FindByID after delete returned error: %v", err)
+	}
+	if found != nil {
+		t.Error("product still findable after Delete")
+	}
+
+	if len(audit.entries) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(audit.entries))
+	}
+	entry := audit.entries[0]
+	if entry.Action != "product.delete" || entry.ActorID != 42 || entry.ResourceID != product.ID {
+		t.Errorf("audit entry = %+v, want product.delete by actor 42 for resource %d", entry, product.ID)
+	}
+}
+
+func TestProductService_Delete_NotFound(t *testing.T) {
+	svc, _ := newTestProductService()
+
+	err := svc.Delete(context.Background(), 42, 999)
+	if err == nil {
+		t.Fatal("Delete of nonexistent product returned no error, want NotFound")
 	}
 }

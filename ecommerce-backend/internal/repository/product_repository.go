@@ -29,6 +29,7 @@ type ProductFilter struct {
 type ProductRepository interface {
 	Create(ctx context.Context, product *model.Product) error
 	Update(ctx context.Context, product *model.Product) error
+	Delete(ctx context.Context, id uint) error
 	FindByID(ctx context.Context, id uint) (*model.Product, error)
 	FindBySlug(ctx context.Context, slug string) (*model.Product, error)
 	List(ctx context.Context, filter ProductFilter) ([]model.Product, int64, error)
@@ -57,6 +58,22 @@ func (r *productRepository) Create(ctx context.Context, product *model.Product) 
 func (r *productRepository) Update(ctx context.Context, product *model.Product) error {
 	if err := r.db.WithContext(ctx).Save(product).Error; err != nil {
 		return fmt.Errorf("repository: update product: %w", err)
+	}
+	return nil
+}
+
+// Delete soft-deletes a product (sets deleted_at, per model.Product's
+// gorm.DeletedAt) rather than a hard DELETE — order_items/cart_items still
+// reference the row by product_id, and a hard delete would either violate
+// that foreign key or destroy history. idx_products_slug_active is already
+// scoped to deleted_at IS NULL, so the slug frees up for reuse immediately.
+func (r *productRepository) Delete(ctx context.Context, id uint) error {
+	result := r.db.WithContext(ctx).Delete(&model.Product{}, id)
+	if result.Error != nil {
+		return fmt.Errorf("repository: delete product: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("repository: delete product: %w", gorm.ErrRecordNotFound)
 	}
 	return nil
 }

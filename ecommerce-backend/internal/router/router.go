@@ -23,12 +23,14 @@ type Deps struct {
 
 	CORSAllowedOrigins []string
 
-	Tokens          *auth.TokenManager
-	AuthHandler     *handler.AuthHandler
-	ProductHandler  *handler.ProductHandler
-	CategoryHandler *handler.CategoryHandler
-	CartHandler     *handler.CartHandler
-	OrderHandler    *handler.OrderHandler
+	Tokens           *auth.TokenManager
+	AuthHandler      *handler.AuthHandler
+	ProductHandler   *handler.ProductHandler
+	CategoryHandler  *handler.CategoryHandler
+	CartHandler      *handler.CartHandler
+	OrderHandler     *handler.OrderHandler
+	AddressHandler   *handler.AddressHandler
+	InventoryHandler *handler.InventoryHandler
 }
 
 // New builds the Gin engine with global middleware and all route groups
@@ -60,6 +62,8 @@ func New(deps Deps) *gin.Engine {
 	registerCategoryRoutes(api, deps)
 	registerCartRoutes(api, deps)
 	registerOrderRoutes(api, deps)
+	registerAddressRoutes(api, deps)
+	registerInventoryRoutes(api, deps)
 
 	return engine
 }

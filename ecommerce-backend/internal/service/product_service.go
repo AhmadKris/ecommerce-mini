@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 
+	"gorm.io/gorm"
+
 	"ecommerce-backend/internal/apperror"
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/repository"
@@ -127,6 +129,20 @@ func (s *ProductService) Update(ctx context.Context, actorID uint, id uint, req 
 	}
 	s.recordAudit(ctx, actorID, "product.update", product.ID, changes)
 	return product, nil
+}
+
+// Delete soft-deletes a product. It stays visible on existing orders/carts
+// (see ProductRepository.Delete) but disappears from the public catalog and
+// from admin's product list immediately.
+func (s *ProductService) Delete(ctx context.Context, actorID uint, id uint) error {
+	if err := s.productRepo.Delete(ctx, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("Produk tidak ditemukan", nil)
+		}
+		return apperror.Internal(fmt.Errorf("service: delete product: %w", err))
+	}
+	s.recordAudit(ctx, actorID, "product.delete", id, map[string]any{})
+	return nil
 }
 
 // GetBySlug returns a single product for the public product detail page.

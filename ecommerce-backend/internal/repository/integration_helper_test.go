@@ -55,3 +55,14 @@ func seedUserWithCartItem(t *testing.T, db *gorm.DB, email string, productID uin
 
 	return user.ID
 }
+
+// seedUser inserts a plain user (no cart), returning its ID.
+func seedUser(t *testing.T, db *gorm.DB, email string) uint {
+	t.Helper()
+
+	user := model.User{Name: "Test User", Email: email, PasswordHash: "hash"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	return user.ID
+}

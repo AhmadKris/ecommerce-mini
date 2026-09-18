@@ -97,3 +97,20 @@ func (h *ProductHandler) Update(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": product})
 }
+
+// Delete handles DELETE /api/admin/products/:id.
+func (h *ProductHandler) Delete(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		_ = c.Error(apperror.Validation("ID produk tidak valid", []string{"id: must be an integer"}))
+		return
+	}
+
+	actorID, _ := middleware.UserIDFromContext(c)
+	if err := h.productService.Delete(c.Request.Context(), actorID, uint(id)); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"deleted": true}})
+}

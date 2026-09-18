@@ -1,0 +1,71 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ecommerce-backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "ecommerce-backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: ecommerce-backend
+
+# Separate jobs, not one script — a lint failure shouldn't hide whether
+# tests would've passed (see .claude/CLAUDE.md §11 CI).
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+      # Pinned action version so a golangci-lint-action bump can't silently
+      # change lint results between local runs and CI.
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: ecommerce-backend
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+      # -race here specifically because local dev on this project's Windows
+      # box can't always run it (no C compiler) — ubuntu-latest ships gcc,
+      # so CI is where races actually get caught, not optional here.
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./... -race
+      # Real Docker daemon is available on ubuntu-latest runners, so the
+      # testcontainers-go suite (checkout race condition, inventory
+      # adjustment race condition, cart ownership) runs for real instead of
+      # only ever being verified by hand before a merge.
+      - run: go test -tags=integration ./... -race
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/build-push-action@v6
+        with:
+          context: ecommerce-backend
+          push: false
+          tags: ecommerce-backend:ci

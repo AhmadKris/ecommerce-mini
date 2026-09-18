@@ -87,27 +87,12 @@ func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAdd
 		orderItems := make([]model.OrderItem, 0, len(cartItems))
 
 		for _, cartItem := range cartItems {
-			var product model.Product
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&product, cartItem.ProductID).Error; err != nil {
+			orderItem, subtotal, err := lockAndReserveStock(tx, cartItem)
+			if err != nil {
 				return err
 			}
-			if product.Stock < cartItem.Quantity {
-				return fmt.Errorf("%w: %s", ErrInsufficientStock, product.Name)
-			}
-
-			product.Stock -= cartItem.Quantity
-			if err := tx.Save(&product).Error; err != nil {
-				return err
-			}
-
-			order.TotalAmount += product.Price * float64(cartItem.Quantity)
-			orderItems = append(orderItems, model.OrderItem{
-				ProductID:       product.ID,
-				ProductName:     product.Name,
-				Quantity:        cartItem.Quantity,
-				PriceAtPurchase: product.Price,
-				Product:         &product,
-			})
+			order.TotalAmount += subtotal
+			orderItems = append(orderItems, orderItem)
 		}
 
 		order.TotalAmount += order.ShippingCost
@@ -161,6 +146,36 @@ func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAdd
 	}
 
 	return &order, nil
+}
+
+// lockAndReserveStock locks cartItem's product row (SELECT ... FOR UPDATE),
+// checks and decrements its stock, and returns the OrderItem it becomes —
+// split out of Checkout purely to keep that function's cyclomatic
+// complexity under the project's gocyclo limit; behavior is unchanged, tx
+// is still the same transaction Checkout is running in.
+func lockAndReserveStock(tx *gorm.DB, cartItem model.CartItem) (model.OrderItem, float64, error) {
+	var product model.Product
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&product, cartItem.ProductID).Error; err != nil {
+		return model.OrderItem{}, 0, err
+	}
+	if product.Stock < cartItem.Quantity {
+		return model.OrderItem{}, 0, fmt.Errorf("%w: %s", ErrInsufficientStock, product.Name)
+	}
+
+	product.Stock -= cartItem.Quantity
+	if err := tx.Save(&product).Error; err != nil {
+		return model.OrderItem{}, 0, err
+	}
+
+	orderItem := model.OrderItem{
+		ProductID:       product.ID,
+		ProductName:     product.Name,
+		Quantity:        cartItem.Quantity,
+		PriceAtPurchase: product.Price,
+		Product:         &product,
+	}
+	subtotal := product.Price * float64(cartItem.Quantity)
+	return orderItem, subtotal, nil
 }
 
 func (r *orderRepository) ListByUserID(ctx context.Context, userID uint, page, limit int) ([]model.Order, int64, error) {

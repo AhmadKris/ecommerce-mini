@@ -1,4 +1,4 @@
-.PHONY: run test test-integration test-coverage lint migrate-up migrate-down migrate-create docker-build docker-up docker-down
+.PHONY: run test test-integration test-coverage lint govulncheck migrate-up migrate-down migrate-create docker-build docker-up docker-down
 
 run:
 	go run ./cmd/api
@@ -19,6 +19,11 @@ test-coverage:
 
 lint:
 	golangci-lint run
+
+# Same check backend-ci.yml's govulncheck job runs — run this before pushing
+# so a reachable CVE surfaces locally, not first as a red CI check.
+govulncheck:
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 migrate-up:
 	migrate -path migrations -database "$$DATABASE_URL" up

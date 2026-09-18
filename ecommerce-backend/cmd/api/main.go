@@ -83,6 +83,14 @@ func main() {
 	orderService := service.NewOrderService(orderRepo, auditLogRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
+	addressRepo := repository.NewAddressRepository(db)
+	addressService := service.NewAddressService(addressRepo)
+	addressHandler := handler.NewAddressHandler(addressService)
+
+	inventoryRepo := repository.NewInventoryRepository(db)
+	inventoryService := service.NewInventoryService(inventoryRepo)
+	inventoryHandler := handler.NewInventoryHandler(inventoryService)
+
 	engine := router.New(router.Deps{
 		DB:                 db,
 		Cache:              redisClient,
@@ -94,11 +102,18 @@ func main() {
 		CategoryHandler:    categoryHandler,
 		CartHandler:        cartHandler,
 		OrderHandler:       orderHandler,
+		AddressHandler:     addressHandler,
+		InventoryHandler:   inventoryHandler,
 	})
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: engine,
+		// Without this, a client that trickles request headers in slowly
+		// (deliberately or not) can hold a connection open indefinitely —
+		// the classic Slowloris DoS. 5s is generous for any legitimate
+		// client on any network.
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {

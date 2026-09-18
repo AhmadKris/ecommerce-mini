@@ -16,4 +16,5 @@ func registerProductRoutes(api *gin.RouterGroup, deps Deps) {
 	adminProducts := api.Group("/admin/products", middleware.RequireAuth(deps.Tokens))
 	adminProducts.POST("", middleware.RequirePermission("product:create"), deps.ProductHandler.Create)
 	adminProducts.PUT("/:id", middleware.RequirePermission("product:update"), deps.ProductHandler.Update)
+	adminProducts.DELETE("/:id", middleware.RequirePermission("product:delete"), deps.ProductHandler.Delete)
 }

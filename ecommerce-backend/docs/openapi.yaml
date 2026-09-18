@@ -184,6 +184,122 @@ paths:
                 $ref: "#/components/schemas/SuccessEnvelope"
         "401":
           description: Tidak ada/token akses tidak valid
+  /api/profile/addresses:
+    get:
+      summary: List alamat tersimpan milik user yang login, default duluan
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "{items}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+    post:
+      summary: >
+        Simpan alamat baru. is_default:true otomatis meng-unset default
+        sebelumnya (at-most-one-default invariant, dijaga dalam transaction).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipient_name, phone, address_line, city, province, postal_code]
+              properties:
+                recipient_name:
+                  type: string
+                phone:
+                  type: string
+                address_line:
+                  type: string
+                  minLength: 10
+                city:
+                  type: string
+                province:
+                  type: string
+                postal_code:
+                  type: string
+                is_default:
+                  type: boolean
+      responses:
+        "201":
+          description: Alamat berhasil disimpan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+  /api/profile/addresses/{id}:
+    put:
+      summary: >
+        Ubah alamat (full replace, semua field wajib dikirim ulang). Ditolak
+        404 kalau alamat bukan milik user yang login (bukan 403 — cegah
+        enumeration ID alamat user lain, sama seperti cart).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipient_name, phone, address_line, city, province, postal_code]
+              properties:
+                recipient_name:
+                  type: string
+                phone:
+                  type: string
+                address_line:
+                  type: string
+                city:
+                  type: string
+                province:
+                  type: string
+                postal_code:
+                  type: string
+                is_default:
+                  type: boolean
+      responses:
+        "200":
+          description: Alamat berhasil diubah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "404":
+          description: Alamat tidak ditemukan atau milik user lain
+    delete:
+      summary: Hapus alamat (404 kalau bukan milik user yang login)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alamat berhasil dihapus
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "404":
+          description: Alamat tidak ditemukan atau milik user lain
   /api/categories:
     get:
       summary: List semua kategori (public, tidak dipaginasi — jumlahnya kecil)
@@ -429,6 +545,29 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission product:update
+    delete:
+      summary: >
+        Hapus produk (butuh permission product:delete). Soft-delete
+        (kolom deleted_at) — order/cart lama yang mereferensikan produk ini
+        tidak rusak, produk cuma hilang dari katalog publik dan daftar
+        admin. Slug-nya langsung bisa dipakai ulang produk lain.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Produk berhasil dihapus
+        "404":
+          description: Produk tidak ditemukan
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission product:delete
   /api/cart:
     get:
       summary: Ambil cart milik user yang sedang login (dibuat otomatis kalau belum ada)
@@ -685,3 +824,83 @@ paths:
           description: Order tidak ditemukan
         "409":
           description: Transisi status tidak valid dari status order saat ini
+  /api/admin/inventory/adjustments:
+    post:
+      summary: >
+        Sesuaikan stok produk (admin, butuh permission inventory:adjust).
+        Atomic (row lock SELECT...FOR UPDATE, sama pola dengan checkout) —
+        cek stok dan tulis inventory_movements dalam satu transaction.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, type, reason]
+              properties:
+                product_id:
+                  type: integer
+                type:
+                  type: string
+                  enum: [in, out, correction]
+                  description: >
+                    in/out: quantity adalah delta yang ditambah/dikurangi
+                    dari stok saat ini. correction: quantity adalah nilai
+                    stok baru absolut (bukan delta) — untuk rekonsiliasi ke
+                    hasil stock opname.
+                quantity:
+                  type: integer
+                  minimum: 0
+                reason:
+                  type: string
+                reference:
+                  type: string
+      responses:
+        "201":
+          description: Penyesuaian berhasil, response berisi InventoryMovement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission inventory:adjust
+        "404":
+          description: Produk tidak ditemukan
+        "409":
+          description: "Adjustment type=out melebihi stok yang tersedia (hasil akhir akan negatif)"
+  /api/admin/inventory/{productId}/movements:
+    get:
+      summary: Riwayat pergerakan stok satu produk (admin, butuh permission inventory:read)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: "{items, meta}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission inventory:read
