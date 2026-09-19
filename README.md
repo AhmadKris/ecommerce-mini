@@ -1,109 +1,143 @@
-# Ecommerce Mini
+# Ecommerce Mini — Production-Ready Architecture
 
-Platform e-commerce skala kecil: REST API (Go) + storefront SPA (React), dengan
-autentikasi berbasis JWT, role-based access control, katalog produk, keranjang
-belanja, dan checkout yang aman dari race condition (stok tidak akan oversell
-walau ada banyak checkout bersamaan untuk produk yang sama).
+Platform E-commerce Mini skala kecil dengan standar **production-ready** sungguhan (REST API Go + React SPA Storefront & Admin Panel). Dibangun dengan prinsip high availability, resilience, observability, dan granular RBAC.
 
-Monorepo, dua bagian independen:
+[![CI/CD Pipeline](https://github.com/AhmadKris/ecommerce-mini/actions/workflows/ci.yml/badge.svg)](https://github.com/AhmadKris/ecommerce-mini/actions/workflows/ci.yml)
 
-```
-ecommerce-mini/
-├── ecommerce-backend/    Go REST API
-├── ecommerce-frontend/   React SPA (storefront)
-└── docker-compose.yml    Menjalankan keduanya + Postgres + Redis sekaligus
-```
+---
 
-## Fitur
+## 🌟 Fitur & 5 Pilar Production-Ready
 
-- **Autentikasi & RBAC** — register/login dengan JWT (access + refresh token),
-  role `admin`/`customer`, permission per-endpoint (mis. hanya admin yang bisa
-  membuat/mengubah produk).
-- **Katalog produk** — list dengan pagination, detail produk, kategori.
-- **Keranjang belanja** — tambah/ubah/hapus item, tervalidasi terhadap stok
-  yang tersedia.
-- **Checkout & order** — mengubah keranjang jadi order secara atomic: stok
-  dikunci dan dikurangi dalam satu transaction database (`SELECT ... FOR
-  UPDATE`), sehingga dua checkout bersamaan untuk stok terakhir yang sama
-  tidak akan menyebabkan oversell. Harga produk di-snapshot saat checkout,
-  ongkos kirim dihitung dan dipersist di sisi server.
-- **Riwayat pesanan** — daftar order milik user yang login, dengan status dan
-  rincian item.
-- **Admin panel** — kelola produk & kategori, lihat semua pesanan dari
-  seluruh customer.
-- **Hardening** — rate limiting (endpoint auth), idempotency key di
-  checkout, audit log untuk action sensitif.
+### 1. Granular RBAC (Role-Based Access Control)
+- Multi-role per pengguna (`admin`, `customer`, dsb.).
+- Permission code berformat `resource:action` (`product:create`, `order:read_all`, `user:manage`).
+- Permission disuntikkan langsung ke dalam **JWT Access Token claims** untuk verifikasi middleware berkecepatan tinggi tanpa DB lookup overhead (~0ms).
+- Halaman **Manajemen Role & Akses** tersendiri untuk mengalokasikan role pengguna dengan proteksi *Self-Lockout Prevention*.
 
-## Tech Stack
+### 2. High Resilience & Atomic Checkout
+- **Strict Race Condition Prevention**: Pengurangan stok saat checkout dikunci secara atomic di database (`SELECT ... FOR UPDATE`), mencegah *overselling* saat ada lonjakan request bersamaan.
+- **Idempotency Key**: Endpoint checkout mendukung header `Idempotency-Key` untuk mencegah *double-charge* saat client melakukan retry.
+- **Audit Logging**: Mencatat setiap perubahan sensitif (mutasi stok, pembaruan role, update status order) ke dalam tabel `audit_logs`.
 
-| Layer | Teknologi |
-|---|---|
-| Backend | Go, Gin, GORM, PostgreSQL, Redis, JWT (`golang-jwt/v5`), `golang-migrate` |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Query, Zustand, React Router, React Hook Form + Zod |
-| Testing | Go standard testing (backend), Vitest + React Testing Library + MSW (frontend) |
-| Infra | Docker, Docker Compose, Nginx (serve frontend statis) |
+### 3. Reliable Outbox Pattern & Background Worker
+- Penulisan event `order.created` dieksekusi **atomic** di dalam transaksi DB checkout yang sama ke tabel `outbox_events`.
+- Process **Background Worker** terpisah memproses tugas asinkron (notifikasi email, pemicuan fulfillment queue) secara andal (*At-Least-Once Delivery*) dengan *graceful shutdown* saat menerima `SIGTERM`.
 
-## Menjalankan Project
+### 4. Redis Cache-Aside Pattern
+- Pembacaan katalog produk (`GET /api/products`, `GET /api/products/:slug`) dan kategori menggunakan strategi **Cache-Aside** dengan Redis TTL (5–10 menit).
+- Auto-invalidation proaktif (`products:*`, `categories:*`) saat terjadi mutasi produk/kategori oleh admin.
 
-### Semua sekaligus lewat Docker (cara tercepat)
+### 5. Full Observability (Metrics & Tracing)
+- **Prometheus Exporter**: Endpoint `/metrics` mengukur HTTP request counter, status code, latency histogram (`http_request_duration_seconds`), dan in-flight requests.
+- **OpenTelemetry Tracing**: Middleware menyuntikkan header response `X-Trace-ID` dan mempropagasi context span tracer.
+- **Dashboard Grafana**: Config preset dashboard Grafana ter-provisioning otomatis untuk memantau RPS dan p95/p99 latency.
+
+---
+
+## 📐 Arsitektur Sistem
 
 ```
-docker compose up -d --build
+                    ┌─────────────────────────┐
+                    │      Browser Client     │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+                     ┌───────────────────────┐
+                     │     Nginx Web SPA     │ (Port 3000)
+                     └───────────┬───────────┘
+                                 │
+                                 ▼
+                     ┌───────────────────────┐
+                     │    Go REST API App    │ (Port 8080)
+                     └───┬───────────┬───────┘
+                         │           │
+           ┌─────────────┴─┐       ┌─┴─────────────┐
+           │ PostgreSQL 16 │       │    Redis 7    │
+           │  (DB + Outbox)│       │(Cache-Aside)  │
+           └───────┬───────┘       └───────────────┘
+                   │
+                   ▼
+         ┌──────────────────┐
+         │ Background Worker│ (Internal Goroutine Loop)
+         └──────────────────┘
 ```
 
-Menjalankan Postgres, Redis, migration database (sekali jalan lalu exit), API,
-dan frontend dalam satu jaringan Docker:
+---
 
-| Service | URL | Keterangan |
+## 📑 Architecture Decision Records (ADRs)
+
+Arsitektur dan pilihan desain penting telah didokumentasikan dalam format ADR:
+- 📄 **[ADR 001: Custom Granular RBAC vs Casbin](docs/adr/001-custom-rbac-vs-casbin.md)**
+- 📄 **[ADR 002: Outbox Pattern & Background Worker untuk Async Order Events](docs/adr/002-outbox-pattern-for-async-events.md)**
+- 📄 **[ADR 003: Redis Cache-Aside Pattern & Proactive Invalidation](docs/adr/003-redis-cache-aside-and-invalidation.md)**
+
+---
+
+## 🚀 Menjalankan Aplikasi
+
+### Option A: Full Production Stack (Docker Compose)
+
+Jalankan seluruh stack (PostgreSQL, Redis, Migration, API Backend, Web Frontend, Prometheus, dan Grafana) sekaligus:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+| Service | Endpoint | Deskripsi |
 |---|---|---|
-| Frontend | http://localhost:3000 | Storefront SPA |
-| API | http://localhost:8080 | `GET /health`, `GET /ready`, `GET /api/products`, dst |
-| PostgreSQL | localhost:5433 | |
-| Redis | localhost:6379 | |
+| **Storefront & Admin SPA** | http://localhost:3000 | Frontend Web React SPA |
+| **Go REST API** | http://localhost:8080 | Endpoint API (`/api/products`, `/api/orders`, `/metrics`, `/health`) |
+| **Prometheus Server** | http://localhost:9090 | Metrics Scraping Engine |
+| **Grafana Dashboard** | http://localhost:3001 | Dashboard Monitoring (Login: `admin` / `admin`) |
 
-Cek status: `docker compose ps` — semua service harus `healthy` (`migrate`
-`Exited (0)` itu normal, dia memang sekali jalan). Matikan dengan
-`docker compose down` (tambahkan `-v` untuk ikut hapus data Postgres).
+### Option B: Local Development
 
-### Development aktif (hot reload)
+Untuk pengembangan lokal (hot reload):
+1. **Backend**:
+   ```bash
+   cd ecommerce-backend
+   go run ./cmd/api
+   ```
+2. **Frontend**:
+   ```bash
+   cd ecommerce-frontend
+   npm run dev
+   ```
 
-Untuk development sehari-hari (tanpa rebuild image Docker tiap ubah kode),
-jalankan backend dan frontend secara native — lihat instruksi detail di
-masing-masing:
+---
 
-- [`ecommerce-backend/README.md`](ecommerce-backend/README.md)
-- [`ecommerce-frontend/README.md`](ecommerce-frontend/README.md)
+## 🧪 Pengujian & Quality Assurance
 
-## API
+### 1. Backend & Frontend Tests
+```bash
+# Backend unit & integration tests
+cd ecommerce-backend && go test -v ./...
 
-Spesifikasi lengkap ada di [`ecommerce-backend/docs/openapi.yaml`](ecommerce-backend/docs/openapi.yaml).
-Endpoint utama:
+# Frontend component & schema tests
+cd ecommerce-frontend && npm test -- --run
+```
 
-| Endpoint | Keterangan |
-|---|---|
-| `POST /api/auth/register`, `POST /api/auth/login` | Registrasi & login |
-| `POST /api/auth/refresh` | Perpanjang access token |
-| `GET /api/auth/me` | Profil user yang login |
-| `GET /api/products`, `GET /api/products/:slug` | Katalog produk |
-| `POST/PUT /api/admin/products` | Kelola produk (admin) |
-| `GET /api/categories` | List kategori |
-| `POST/PUT/DELETE /api/admin/categories` | Kelola kategori (admin) |
-| `GET/POST/PUT/DELETE /api/cart` | Keranjang belanja |
-| `POST /api/orders` | Checkout (header opsional `Idempotency-Key`) |
-| `GET /api/orders` | Riwayat pesanan sendiri |
-| `GET /api/admin/orders` | Semua pesanan (admin) |
+### 2. Load Testing dengan k6
+Eksekusi pengujian beban (*load test*) untuk menguji performa endpoint katalog dan checkout:
 
-## Status
+```bash
+# Install k6 atau gunakan npx / docker run k6
+k6 run tests/load/k6_test.js
+```
 
-**Fase 1 (Foundation) — selesai**, di kedua sisi. **Fase 2 (Production
-Hardening) — hampir selesai**:
+Threshold SLA yang diuji:
+- `http_req_duration`: p95 < 200ms, p99 < 500ms
+- `http_req_failed`: error rate < 1%
 
-- Backend: scaffold, auth + RBAC, CRUD produk & kategori, keranjang,
-  checkout/order (idempotency key, audit log), rate limiting, `/auth/me`,
-  admin order list, integration test (testcontainers-go).
-- Frontend: setup project, API client + auth store, halaman login/register,
-  katalog produk, keranjang, checkout, riwayat pesanan, admin panel (produk,
-  kategori, semua pesanan).
+---
 
-Belum ada: circuit breaker (menunggu integrasi payment gateway eksternal
-sungguhan), observability (Fase 3 — Prometheus/Grafana, tracing).
+## 🔑 Akun Demo (Default Seed Data)
+
+- **Admin Account**:
+  - Email: `admin@example.com`
+  - Password: `Password123!`
+  - Role: `admin` (Hak akses penuh ke Admin Panel & Manajemen Role)
+- **Customer Account**:
+  - Email: `customer@example.com`
+  - Password: `Password123!`
+  - Role: `customer` (Akses Storefront, Cart, Checkout, & Orders)
