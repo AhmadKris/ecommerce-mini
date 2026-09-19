@@ -6,6 +6,8 @@ import { AdminLayout } from "./components/layout/AdminLayout";
 import { Header } from "./components/layout/Header";
 import { Home } from "./pages/Home";
 import { AdminCategories } from "./pages/admin/AdminCategories";
+import { AdminCustomerDetail } from "./pages/admin/AdminCustomerDetail";
+import { AdminCustomers } from "./pages/admin/AdminCustomers";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminInventory } from "./pages/admin/AdminInventory";
 import { AdminOrderDetail } from "./pages/admin/AdminOrderDetail";
@@ -63,6 +65,8 @@ function App() {
           <Route path="/admin/categories" element={<AdminCategories />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
+          <Route path="/admin/customers" element={<AdminCustomers />} />
+          <Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/promotions" element={<AdminPromotions />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />

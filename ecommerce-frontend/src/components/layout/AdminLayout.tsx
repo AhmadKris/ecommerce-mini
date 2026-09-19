@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
+import { usePermission } from "../../hooks/usePermission";
 import { useAuthStore } from "../../store/auth-store";
 
 const navItems = [
@@ -7,6 +8,7 @@ const navItems = [
   { to: "/admin/products", label: "Produk" },
   { to: "/admin/categories", label: "Kategori" },
   { to: "/admin/orders", label: "Pesanan" },
+  { to: "/admin/customers", label: "Pelanggan", permission: "customer:read" },
   { to: "/admin/inventory", label: "Stok" },
   { to: "/admin/promotions", label: "Promo" },
   { to: "/admin/reviews", label: "Ulasan" },
@@ -19,6 +21,7 @@ const breadcrumbSections: { prefix: string; label: string }[] = [
   { prefix: "/admin/products", label: "Produk" },
   { prefix: "/admin/categories", label: "Kategori" },
   { prefix: "/admin/orders", label: "Pesanan" },
+  { prefix: "/admin/customers", label: "Pelanggan" },
   { prefix: "/admin/inventory", label: "Stok" },
   { prefix: "/admin/promotions", label: "Promo" },
   { prefix: "/admin/reviews", label: "Ulasan" },
@@ -40,6 +43,8 @@ function currentSectionLabel(pathname: string): string {
 export function AdminLayout() {
   const clearSession = useAuthStore((state) => state.clearSession);
   const location = useLocation();
+  const canReadCustomers = usePermission("customer:read");
+  const visibleNavItems = navItems.filter((item) => item.permission !== "customer:read" || canReadCustomers);
 
   return (
     <div className="flex min-h-screen">
@@ -48,7 +53,7 @@ export function AdminLayout() {
           Ecommerce Mini
         </a>
         <nav className="mt-8 flex flex-col gap-1">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
