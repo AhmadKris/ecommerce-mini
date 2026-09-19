@@ -36,7 +36,13 @@ jobs:
       # (currently v2.13.2), the exact inconsistency this fix is about.
       # Bump this deliberately, in the same commit as a local
       # golangci-lint upgrade, not automatically.
-      - uses: golangci/golangci-lint-action@v6
+      # v9 of the action (current stable), not v6 — v6 only supports
+      # golangci-lint v1.x and rejects a v2.x version string outright
+      # ("golangci-lint v2 is not supported by golangci-lint-action v6").
+      # .golangci.yml is already v2-format (see Linting & Pre-commit), and
+      # every major from v7 onward requires v2 — v9 is the current one, not
+      # the oldest one that happens to work.
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
           working-directory: ecommerce-backend
