@@ -124,7 +124,25 @@ func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAdd
 		// Written in the same transaction as the stock decrement, not as a
 		// best-effort side effect afterwards — an audit trail that could
 		// silently go missing on a partial failure defeats its own purpose.
-		return writeCheckoutAuditLog(tx, order, userID, len(orderItems))
+		if err := writeCheckoutAuditLog(tx, order, userID, len(orderItems)); err != nil {
+			return err
+		}
+
+		// Write Outbox Event for async processing (email/fulfillment) inside the same tx
+		outboxPayload, err := json.Marshal(map[string]any{
+			"order_id": order.ID,
+			"user_id":  userID,
+			"total":    order.TotalAmount,
+		})
+		if err != nil {
+			return fmt.Errorf("marshal outbox payload: %w", err)
+		}
+		outboxEvent := model.OutboxEvent{
+			EventType: "order.created",
+			Payload:   string(outboxPayload),
+			Status:    model.OutboxStatusPending,
+		}
+		return tx.Create(&outboxEvent).Error
 	})
 	if err != nil {
 		return nil, fmt.Errorf("repository: checkout: %w", err)

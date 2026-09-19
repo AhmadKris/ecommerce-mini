@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
 	"ecommerce-backend/internal/apperror"
+	"ecommerce-backend/internal/cache"
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/repository"
 )
@@ -34,11 +36,16 @@ type ProductService struct {
 	productRepo  repository.ProductRepository
 	categoryRepo repository.CategoryRepository
 	auditLogRepo repository.AuditLogRepository
+	cacheService cache.CacheService
 }
 
 // NewProductService builds a ProductService with its dependencies.
 func NewProductService(productRepo repository.ProductRepository, categoryRepo repository.CategoryRepository, auditLogRepo repository.AuditLogRepository) *ProductService {
 	return &ProductService{productRepo: productRepo, categoryRepo: categoryRepo, auditLogRepo: auditLogRepo}
+}
+
+func (s *ProductService) SetCacheService(cacheService cache.CacheService) {
+	s.cacheService = cacheService
 }
 
 // Create validates the target category exists, then persists the product
@@ -69,7 +76,11 @@ func (s *ProductService) Create(ctx context.Context, actorID uint, req model.Cre
 		err := s.productRepo.Create(ctx, product)
 		if err == nil {
 			s.recordAudit(ctx, actorID, "product.create", product.ID, map[string]any{
-				"name": product.Name, "price": product.Price, "stock": product.Stock,
+				"category_id": product.CategoryID,
+				"name":        product.Name,
+				"sku":         product.SKU,
+				"price":       product.Price,
+				"stock":       product.Stock,
 			})
 			return product, nil
 		}
@@ -85,8 +96,8 @@ func (s *ProductService) Create(ctx context.Context, actorID uint, req model.Cre
 	return nil, apperror.Internal(fmt.Errorf("service: create product: no unique slug found after %d attempts for %q", maxSlugAttempts, baseSlug))
 }
 
-// Update applies only the fields present in req (see UpdateProductRequest's
-// pointer fields) to the existing product. The slug is never changed here —
+// Update mutates product fields in place and updates the DB record. Slug is
+// NOT updated even if Name changes — slug is an immutable product identity;
 // it's assigned once at creation so published product URLs stay stable.
 func (s *ProductService) Update(ctx context.Context, actorID uint, id uint, req model.UpdateProductRequest) (*model.Product, error) {
 	product, err := s.productRepo.FindByID(ctx, id)
@@ -138,6 +149,11 @@ func (s *ProductService) Update(ctx context.Context, actorID uint, id uint, req 
 		}
 		return nil, apperror.Internal(fmt.Errorf("service: update product: %w", err))
 	}
+
+	if s.cacheService != nil {
+		_ = s.cacheService.InvalidatePattern(ctx, "products:*")
+	}
+
 	s.recordAudit(ctx, actorID, "product.update", product.ID, changes)
 	return product, nil
 }
@@ -152,12 +168,25 @@ func (s *ProductService) Delete(ctx context.Context, actorID uint, id uint) erro
 		}
 		return apperror.Internal(fmt.Errorf("service: delete product: %w", err))
 	}
+
+	if s.cacheService != nil {
+		_ = s.cacheService.InvalidatePattern(ctx, "products:*")
+	}
+
 	s.recordAudit(ctx, actorID, "product.delete", id, map[string]any{})
 	return nil
 }
 
 // GetBySlug returns a single product for the public product detail page.
 func (s *ProductService) GetBySlug(ctx context.Context, slug string) (*model.Product, error) {
+	cacheKey := fmt.Sprintf("products:slug:%s", slug)
+	if s.cacheService != nil {
+		var cachedProduct model.Product
+		if s.cacheService.Get(ctx, cacheKey, &cachedProduct) {
+			return &cachedProduct, nil
+		}
+	}
+
 	product, err := s.productRepo.FindBySlug(ctx, slug)
 	if err != nil {
 		return nil, apperror.Internal(fmt.Errorf("service: get product by slug: %w", err))
@@ -165,7 +194,17 @@ func (s *ProductService) GetBySlug(ctx context.Context, slug string) (*model.Pro
 	if product == nil {
 		return nil, apperror.NotFound("Produk tidak ditemukan", nil)
 	}
+
+	if s.cacheService != nil {
+		_ = s.cacheService.Set(ctx, cacheKey, product, 10*time.Minute)
+	}
+
 	return product, nil
+}
+
+type cachedProductList struct {
+	Products []model.Product `json:"products"`
+	Meta     model.Meta      `json:"meta"`
 }
 
 // List returns a page of products matching query, normalizing page/limit to
@@ -183,6 +222,14 @@ func (s *ProductService) List(ctx context.Context, query model.ProductListQuery)
 		limit = maxLimit
 	}
 
+	cacheKey := fmt.Sprintf("products:list:cat=%s:search=%s:sort=%s:page=%d:limit=%d", query.Category, query.Search, query.Sort, page, limit)
+	if s.cacheService != nil {
+		var cached cachedProductList
+		if s.cacheService.Get(ctx, cacheKey, &cached) {
+			return cached.Products, cached.Meta, nil
+		}
+	}
+
 	products, total, err := s.productRepo.List(ctx, repository.ProductFilter{
 		CategorySlug: query.Category,
 		Search:       query.Search,
@@ -194,7 +241,13 @@ func (s *ProductService) List(ctx context.Context, query model.ProductListQuery)
 		return nil, model.Meta{}, apperror.Internal(fmt.Errorf("service: list products: %w", err))
 	}
 
-	return products, model.NewMeta(page, limit, total), nil
+	meta := model.NewMeta(page, limit, total)
+
+	if s.cacheService != nil {
+		_ = s.cacheService.Set(ctx, cacheKey, cachedProductList{Products: products, Meta: meta}, 5*time.Minute)
+	}
+
+	return products, meta, nil
 }
 
 // recordAudit is best-effort: a failed audit write logs the failure but

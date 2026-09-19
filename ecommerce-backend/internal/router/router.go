@@ -42,6 +42,8 @@ type Deps struct {
 func New(deps Deps) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Recovery())
+	engine.Use(middleware.Tracing())
+	engine.Use(middleware.PrometheusMetrics())
 	engine.Use(middleware.RequestID(deps.Logger))
 	engine.Use(middleware.RequestLogging())
 	engine.Use(middleware.CORS(deps.CORSAllowedOrigins))
@@ -59,6 +61,7 @@ func New(deps Deps) *gin.Engine {
 
 	engine.GET("/health", healthHandler())
 	engine.GET("/ready", readyHandler(deps))
+	engine.GET("/metrics", middleware.PrometheusHandler())
 
 	api := engine.Group("/api")
 	registerAuthRoutes(api, deps)

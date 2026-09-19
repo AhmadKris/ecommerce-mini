@@ -21,6 +21,7 @@ import (
 	"ecommerce-backend/internal/repository"
 	"ecommerce-backend/internal/router"
 	"ecommerce-backend/internal/service"
+	"ecommerce-backend/internal/worker"
 )
 
 func main() {
@@ -61,19 +62,27 @@ func main() {
 	refreshBlacklist := auth.NewRefreshBlacklist(redisClient)
 	passwordResetStore := auth.NewPasswordResetStore(redisClient)
 
+	cacheService := cache.NewCacheService(redisClient)
+
 	userRepo := repository.NewUserRepository(db)
 	roleRepo := repository.NewRoleRepository(db)
 	authService := service.NewAuthService(userRepo, roleRepo, tokenManager, refreshBlacklist, passwordResetStore, cfg.BcryptCost)
 	authHandler := handler.NewAuthHandler(authService)
 
 	auditLogRepo := repository.NewAuditLogRepository(db)
+	outboxRepo := repository.NewOutboxRepository(db)
+
+	outboxWorker := worker.NewOutboxWorker(outboxRepo, 2*time.Second)
+	go outboxWorker.Start(ctx)
 
 	productRepo := repository.NewProductRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
 	productService := service.NewProductService(productRepo, categoryRepo, auditLogRepo)
+	productService.SetCacheService(cacheService)
 	productHandler := handler.NewProductHandler(productService)
 
 	categoryService := service.NewCategoryService(categoryRepo, auditLogRepo)
+	categoryService.SetCacheService(cacheService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 
 	cartRepo := repository.NewCartRepository(db)

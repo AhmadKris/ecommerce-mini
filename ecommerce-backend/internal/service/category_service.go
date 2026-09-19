@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"gorm.io/gorm"
 
 	"ecommerce-backend/internal/apperror"
+	"ecommerce-backend/internal/cache"
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/repository"
 )
@@ -21,11 +23,16 @@ import (
 type CategoryService struct {
 	categoryRepo repository.CategoryRepository
 	auditLogRepo repository.AuditLogRepository
+	cacheService cache.CacheService
 }
 
 // NewCategoryService builds a CategoryService with its dependencies.
 func NewCategoryService(categoryRepo repository.CategoryRepository, auditLogRepo repository.AuditLogRepository) *CategoryService {
 	return &CategoryService{categoryRepo: categoryRepo, auditLogRepo: auditLogRepo}
+}
+
+func (s *CategoryService) SetCacheService(cacheService cache.CacheService) {
+	s.cacheService = cacheService
 }
 
 // Create persists a new category under a slug derived from its name,
@@ -42,6 +49,9 @@ func (s *CategoryService) Create(ctx context.Context, actorID uint, req model.Cr
 
 		err := s.categoryRepo.Create(ctx, category)
 		if err == nil {
+			if s.cacheService != nil {
+				_ = s.cacheService.InvalidatePattern(ctx, "categories:*")
+			}
 			s.recordAudit(ctx, actorID, "category.create", category.ID, map[string]any{"name": category.Name})
 			return category, nil
 		}
@@ -75,6 +85,9 @@ func (s *CategoryService) Update(ctx context.Context, actorID uint, id uint, req
 		}
 		return nil, apperror.Internal(fmt.Errorf("service: update category: %w", err))
 	}
+	if s.cacheService != nil {
+		_ = s.cacheService.InvalidatePattern(ctx, "categories:*")
+	}
 	s.recordAudit(ctx, actorID, "category.update", category.ID, map[string]any{"name": category.Name})
 	return category, nil
 }
@@ -91,6 +104,9 @@ func (s *CategoryService) Delete(ctx context.Context, actorID uint, id uint) err
 		}
 		return apperror.Internal(fmt.Errorf("service: delete category: %w", err))
 	}
+	if s.cacheService != nil {
+		_ = s.cacheService.InvalidatePattern(ctx, "categories:*")
+	}
 	s.recordAudit(ctx, actorID, "category.delete", id, map[string]any{})
 	return nil
 }
@@ -99,10 +115,23 @@ func (s *CategoryService) Delete(ctx context.Context, actorID uint, id uint) err
 // (portfolio scale) that a full list is what every caller (admin dropdown,
 // public filter) actually wants.
 func (s *CategoryService) List(ctx context.Context) ([]model.Category, error) {
+	cacheKey := "categories:all"
+	if s.cacheService != nil {
+		var cached []model.Category
+		if s.cacheService.Get(ctx, cacheKey, &cached) {
+			return cached, nil
+		}
+	}
+
 	categories, err := s.categoryRepo.List(ctx)
 	if err != nil {
 		return nil, apperror.Internal(fmt.Errorf("service: list categories: %w", err))
 	}
+
+	if s.cacheService != nil {
+		_ = s.cacheService.Set(ctx, cacheKey, categories, 15*time.Minute)
+	}
+
 	return categories, nil
 }
 
