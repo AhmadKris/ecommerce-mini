@@ -27,6 +27,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByID(ctx context.Context, id uint) (*model.User, error)
+	UpdatePassword(ctx context.Context, userID uint, passwordHash string) error
 }
 
 type userRepository struct {
@@ -76,4 +77,12 @@ func (r *userRepository) FindByID(ctx context.Context, id uint) (*model.User, er
 		return nil, fmt.Errorf("repository: find user by id: %w", err)
 	}
 	return &user, nil
+}
+
+func (r *userRepository) UpdatePassword(ctx context.Context, userID uint, passwordHash string) error {
+	err := r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Update("password_hash", passwordHash).Error
+	if err != nil {
+		return fmt.Errorf("repository: update password: %w", err)
+	}
+	return nil
 }

@@ -59,10 +59,11 @@ func main() {
 
 	tokenManager := auth.NewTokenManager(cfg.JWTAccessSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	refreshBlacklist := auth.NewRefreshBlacklist(redisClient)
+	passwordResetStore := auth.NewPasswordResetStore(redisClient)
 
 	userRepo := repository.NewUserRepository(db)
 	roleRepo := repository.NewRoleRepository(db)
-	authService := service.NewAuthService(userRepo, roleRepo, tokenManager, refreshBlacklist, cfg.BcryptCost)
+	authService := service.NewAuthService(userRepo, roleRepo, tokenManager, refreshBlacklist, passwordResetStore, cfg.BcryptCost)
 	authHandler := handler.NewAuthHandler(authService)
 
 	auditLogRepo := repository.NewAuditLogRepository(db)

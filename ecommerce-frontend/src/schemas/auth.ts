@@ -23,3 +23,21 @@ export const registerSchema = z.object({
     .refine((value) => /[0-9]/.test(value), "Password harus mengandung angka"),
 });
 export type RegisterFormValues = z.infer<typeof registerSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("Email tidak valid"),
+});
+export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+
+/** Mirrors registerSchema's password strength rules — the backend enforces
+ * the same rule (validatePasswordStrength) for a reset password too. */
+export const resetPasswordSchema = z.object({
+  newPassword: z
+    .string()
+    .min(8, "Password minimal 8 karakter")
+    .max(72, "Password maksimal 72 karakter")
+    .refine((value) => /[A-Z]/.test(value), "Password harus mengandung huruf besar")
+    .refine((value) => /[a-z]/.test(value), "Password harus mengandung huruf kecil")
+    .refine((value) => /[0-9]/.test(value), "Password harus mengandung angka"),
+});
+export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;

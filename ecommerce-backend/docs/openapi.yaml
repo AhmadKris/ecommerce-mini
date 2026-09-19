@@ -170,6 +170,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /api/auth/forgot-password:
+    post:
+      summary: >
+        Minta reset password. Selalu membalas pesan sukses generik yang
+        sama, tidak peduli email-nya terdaftar atau tidak — supaya endpoint
+        ini tidak bisa dipakai untuk enumerasi akun. Belum ada provider
+        email terpasang di project ini (lihat .claude/CLAUDE.md Known
+        Issues) — token dicatat ke server log, bukan benar-benar dikirim
+        lewat email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: "Pesan generik: {message}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /api/auth/reset-password:
+    post:
+      summary: >
+        Tukar token reset (dari forgot-password) dengan password baru.
+        Token sekali pakai — dihapus begitu dipakai, permintaan kedua
+        dengan token yang sama akan ditolak meski permintaan pertama
+        berhasil. Kedaluwarsa 30 menit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        "200":
+          description: Password berhasil direset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: Password baru tidak memenuhi syarat kekuatan (huruf besar+kecil+angka)
+        "401":
+          description: Token reset tidak valid, sudah dipakai, atau sudah kedaluwarsa
   /api/auth/me:
     get:
       summary: Profil user yang sedang login (id, name, email)

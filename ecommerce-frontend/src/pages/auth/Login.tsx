@@ -40,6 +40,9 @@ export function Login() {
           error={errors.password?.message}
           {...register("password")}
         />
+        <Link to="/forgot-password" className="text-body-sm text-(--ink-link) self-end">
+          Lupa password?
+        </Link>
 
         {login.isError && (
           <p role="alert" className="text-body-sm text-error-500">

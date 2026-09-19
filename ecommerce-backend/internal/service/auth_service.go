@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 	"unicode"
 
@@ -16,6 +17,20 @@ import (
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/repository"
 )
+
+// passwordResetTTL is how long a forgot-password token stays redeemable.
+// Short on purpose — unlike a session, nothing legitimate needs it to live
+// long, and a shorter window shrinks the damage from an intercepted link.
+const passwordResetTTL = 30 * time.Minute
+
+// PasswordResetStore issues and redeems single-use password reset tokens.
+// Defined here (not imported as a concrete type) so AuthService depends on
+// the behavior it needs, not on auth.PasswordResetStore's Redis backing —
+// same reasoning as every other repository interface in this codebase.
+type PasswordResetStore interface {
+	GenerateToken(ctx context.Context, userID uint, ttl time.Duration) (string, error)
+	Consume(ctx context.Context, token string) (uint, error)
+}
 
 // ErrInvalidCredentials means the email/password pair did not match. It is
 // never distinguished by field in the response, so a client can't use the
@@ -28,12 +43,14 @@ var ErrRefreshTokenReused = errors.New("refresh token already used or revoked")
 
 const customerRoleName = "customer"
 
-// AuthService implements registration, login, and refresh-token rotation.
+// AuthService implements registration, login, refresh-token rotation, and
+// password reset.
 type AuthService struct {
 	userRepo   repository.UserRepository
 	roleRepo   repository.RoleRepository
 	tokens     *auth.TokenManager
 	blacklist  *auth.RefreshBlacklist
+	resetStore PasswordResetStore
 	bcryptCost int
 }
 
@@ -43,6 +60,7 @@ func NewAuthService(
 	roleRepo repository.RoleRepository,
 	tokens *auth.TokenManager,
 	blacklist *auth.RefreshBlacklist,
+	resetStore PasswordResetStore,
 	bcryptCost int,
 ) *AuthService {
 	return &AuthService{
@@ -50,6 +68,7 @@ func NewAuthService(
 		roleRepo:   roleRepo,
 		tokens:     tokens,
 		blacklist:  blacklist,
+		resetStore: resetStore,
 		bcryptCost: bcryptCost,
 	}
 }
@@ -148,6 +167,64 @@ func (s *AuthService) Me(ctx context.Context, userID uint) (*model.User, error) 
 		return nil, apperror.NotFound("User tidak ditemukan", nil)
 	}
 	return user, nil
+}
+
+// ForgotPassword issues a reset token for email if an account with that
+// email exists. It never reports whether the email was found — the handler
+// always returns the same generic success message — so this endpoint can't
+// be used to enumerate registered accounts.
+//
+// There's no email provider wired into this project yet (see
+// .claude/CLAUDE.md Known Issues): the token is logged instead of sent,
+// which is fine for a portfolio/demo but is explicitly not production
+// behavior — replace with a real send once a provider is chosen.
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return apperror.Internal(fmt.Errorf("service: forgot password: %w", err))
+	}
+	if user == nil {
+		return nil
+	}
+
+	token, err := s.resetStore.GenerateToken(ctx, user.ID, passwordResetTTL)
+	if err != nil {
+		return apperror.Internal(fmt.Errorf("service: forgot password: %w", err))
+	}
+
+	slog.Info("password reset requested",
+		slog.Uint64("user_id", uint64(user.ID)),
+		slog.String("email", user.Email),
+		slog.String("reset_token", token),
+	)
+	return nil
+}
+
+// ResetPassword redeems token and sets the account it was issued for to
+// newPassword. The token is single-use — Consume deletes it on read — so a
+// second attempt with the same token fails even if the first succeeded.
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if err := validatePasswordStrength(newPassword); err != nil {
+		return err
+	}
+
+	userID, err := s.resetStore.Consume(ctx, token)
+	if err != nil {
+		return apperror.Internal(fmt.Errorf("service: reset password: %w", err))
+	}
+	if userID == 0 {
+		return apperror.Unauthorized("Token reset password tidak valid atau sudah kedaluwarsa", nil)
+	}
+
+	passwordHash, err := auth.HashPassword(newPassword, s.bcryptCost)
+	if err != nil {
+		return apperror.Internal(fmt.Errorf("service: reset password: %w", err))
+	}
+
+	if err := s.userRepo.UpdatePassword(ctx, userID, passwordHash); err != nil {
+		return apperror.Internal(fmt.Errorf("service: reset password: %w", err))
+	}
+	return nil
 }
 
 func (s *AuthService) issueTokenPair(user *model.User) (*model.AuthTokens, error) {

@@ -18,6 +18,17 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// ForgotPasswordRequest is the payload for POST /api/auth/forgot-password.
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// ResetPasswordRequest is the payload for POST /api/auth/reset-password.
+type ResetPasswordRequest struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8,max=72"`
+}
+
 // AuthTokens is the token pair returned by login and refresh.
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`

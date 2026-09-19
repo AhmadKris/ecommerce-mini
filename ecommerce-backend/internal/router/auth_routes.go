@@ -20,5 +20,7 @@ func registerAuthRoutes(api *gin.RouterGroup, deps Deps) {
 	auth.POST("/register", deps.AuthHandler.Register)
 	auth.POST("/login", deps.AuthHandler.Login)
 	auth.POST("/refresh", deps.AuthHandler.Refresh)
+	auth.POST("/forgot-password", deps.AuthHandler.ForgotPassword)
+	auth.POST("/reset-password", deps.AuthHandler.ResetPassword)
 	auth.GET("/me", middleware.RequireAuth(deps.Tokens), deps.AuthHandler.Me)
 }

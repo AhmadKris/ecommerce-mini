@@ -77,6 +77,43 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	})
 }
 
+// ForgotPassword handles POST /api/auth/forgot-password. The response is
+// always the same generic success message regardless of whether email
+// matched an account — see AuthService.ForgotPassword for why.
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req model.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(apperror.Validation("Data tidak valid", bindingErrors(err)))
+		return
+	}
+
+	if err := h.authService.ForgotPassword(c.Request.Context(), req.Email); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    gin.H{"message": "Jika email terdaftar, instruksi reset password telah dikirim"},
+	})
+}
+
+// ResetPassword handles POST /api/auth/reset-password.
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req model.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(apperror.Validation("Data tidak valid", bindingErrors(err)))
+		return
+	}
+
+	if err := h.authService.ResetPassword(c.Request.Context(), req.Token, req.NewPassword); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"message": "Password berhasil direset"}})
+}
+
 // Refresh handles POST /api/auth/refresh.
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req model.RefreshRequest

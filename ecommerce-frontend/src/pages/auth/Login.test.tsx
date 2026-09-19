@@ -26,6 +26,12 @@ function renderLoginPage() {
 }
 
 describe("Login page", () => {
+  it("links to the forgot-password page", () => {
+    renderLoginPage();
+
+    expect(screen.getByRole("link", { name: /lupa password/i })).toHaveAttribute("href", "/forgot-password");
+  });
+
   it("logs in and navigates home on success", async () => {
     server.use(
       http.post(loginUrl, () =>

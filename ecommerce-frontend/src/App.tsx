@@ -13,8 +13,10 @@ import { AdminProducts } from "./pages/admin/AdminProducts";
 import { AdminPromotions } from "./pages/admin/AdminPromotions";
 import { AdminReviews } from "./pages/admin/AdminReviews";
 import { ProductForm } from "./pages/admin/ProductForm";
+import { ForgotPassword } from "./pages/auth/ForgotPassword";
 import { Login } from "./pages/auth/Login";
 import { Register } from "./pages/auth/Register";
+import { ResetPassword } from "./pages/auth/ResetPassword";
 import { Cart } from "./pages/cart/Cart";
 import { Checkout } from "./pages/checkout/Checkout";
 import { OrderHistory } from "./pages/orders/OrderHistory";
@@ -37,6 +39,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/products" element={<ProductList />} />
         <Route path="/products/:slug" element={<ProductDetail />} />
         <Route element={<ProtectedRoute />}>
