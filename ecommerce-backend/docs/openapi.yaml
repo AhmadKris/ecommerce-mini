@@ -1406,3 +1406,36 @@ paths:
           description: Token valid tapi tidak punya permission customer:read
         "404":
           description: Customer tidak ditemukan
+  /api/admin/reports/dashboard:
+    get:
+      summary: >
+        Ringkasan bisnis untuk admin dashboard (butuh permission report:read)
+        — revenue+trend, jumlah order, pending orders, produk stok rendah,
+        dan funnel status order. Murni agregasi SQL dari data yang sudah ada
+        (orders/products), bukan bagian dari infra observability
+        Prometheus/Grafana Fase 3 (lihat .claude/CLAUDE.md).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: >
+            Panjang periode dalam hari untuk revenue/orders dan trend-nya,
+            dibandingkan terhadap periode sebelumnya dengan panjang sama.
+            Nilai < 1 fallback ke 30, bukan 400. pending_orders, low_stock,
+            dan order_funnel selalu snapshot kondisi saat ini, tidak
+            terikat periode ini.
+      responses:
+        "200":
+          description: "{revenue, orders, pending_orders, low_stock, revenue_trend, order_funnel}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission report:read

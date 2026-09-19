@@ -103,6 +103,10 @@ func main() {
 	customerService := service.NewCustomerService(userRepo)
 	customerHandler := handler.NewCustomerHandler(customerService)
 
+	reportRepo := repository.NewReportRepository(db)
+	reportService := service.NewReportService(reportRepo)
+	reportHandler := handler.NewReportHandler(reportService)
+
 	engine := router.New(router.Deps{
 		DB:                 db,
 		Cache:              redisClient,
@@ -119,6 +123,7 @@ func main() {
 		PromotionHandler:   promotionHandler,
 		ReviewHandler:      reviewHandler,
 		CustomerHandler:    customerHandler,
+		ReportHandler:      reportHandler,
 	})
 
 	server := &http.Server{

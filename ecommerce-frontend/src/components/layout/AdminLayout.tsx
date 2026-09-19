@@ -12,6 +12,7 @@ const navItems = [
   { to: "/admin/inventory", label: "Stok" },
   { to: "/admin/promotions", label: "Promo" },
   { to: "/admin/reviews", label: "Ulasan" },
+  { to: "/admin/reports", label: "Laporan", permission: "report:read" },
 ];
 
 // Maps a path prefix to the breadcrumb section label shown in the top bar —
@@ -25,6 +26,7 @@ const breadcrumbSections: { prefix: string; label: string }[] = [
   { prefix: "/admin/inventory", label: "Stok" },
   { prefix: "/admin/promotions", label: "Promo" },
   { prefix: "/admin/reviews", label: "Ulasan" },
+  { prefix: "/admin/reports", label: "Laporan" },
   { prefix: "/admin", label: "Dashboard" },
 ];
 
@@ -44,7 +46,12 @@ export function AdminLayout() {
   const clearSession = useAuthStore((state) => state.clearSession);
   const location = useLocation();
   const canReadCustomers = usePermission("customer:read");
-  const visibleNavItems = navItems.filter((item) => item.permission !== "customer:read" || canReadCustomers);
+  const canReadReports = usePermission("report:read");
+  const grantedPermissions: Record<string, boolean> = {
+    "customer:read": canReadCustomers,
+    "report:read": canReadReports,
+  };
+  const visibleNavItems = navItems.filter((item) => !item.permission || grantedPermissions[item.permission]);
 
   return (
     <div className="flex min-h-screen">
