@@ -7,6 +7,7 @@ import type { ProductFormValues } from "../schemas/product";
 function toRequestBody(values: ProductFormValues) {
   return {
     name: values.name,
+    sku: values.sku,
     description: values.description,
     price: values.price,
     stock: values.stock,

@@ -38,6 +38,7 @@ export function ProductForm() {
     defaultValues: editingProduct
       ? {
           name: editingProduct.name,
+          sku: editingProduct.sku,
           description: editingProduct.description,
           price: editingProduct.price,
           stock: editingProduct.stock,
@@ -70,6 +71,7 @@ export function ProductForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
         <Input label="Nama produk" error={errors.name?.message} {...register("name")} />
+        <Input label="SKU" error={errors.sku?.message} {...register("sku")} />
 
         <div className="flex flex-col gap-1">
           <label htmlFor="description" className="text-label-md text-(--ink-primary)">

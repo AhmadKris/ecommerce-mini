@@ -6,6 +6,7 @@ import { z } from "zod";
 // CreateProductRequest's comment on backend).
 export const productSchema = z.object({
   name: z.string().min(2, "Nama produk minimal 2 karakter").max(255, "Nama produk maksimal 255 karakter"),
+  sku: z.string().min(1, "SKU wajib diisi").max(64, "SKU maksimal 64 karakter"),
   description: z.string().max(5000, "Deskripsi maksimal 5000 karakter").optional().default(""),
   price: z.coerce.number().gte(0, "Harga tidak boleh negatif"),
   stock: z.coerce.number().int("Stok harus bilangan bulat").gte(0, "Stok tidak boleh negatif"),

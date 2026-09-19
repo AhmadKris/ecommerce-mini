@@ -52,6 +52,7 @@ func (s *ProductService) Create(ctx context.Context, actorID uint, req model.Cre
 	baseSlug := generateSlug(req.Name)
 	product := &model.Product{
 		Name:        req.Name,
+		SKU:         req.SKU,
 		Description: req.Description,
 		Price:       req.Price,
 		Stock:       req.Stock,
@@ -74,6 +75,9 @@ func (s *ProductService) Create(ctx context.Context, actorID uint, req model.Cre
 		}
 		if errors.Is(err, repository.ErrSlugTaken) {
 			continue
+		}
+		if errors.Is(err, repository.ErrSKUTaken) {
+			return nil, apperror.DuplicateEntry("SKU sudah digunakan produk lain", err)
 		}
 		return nil, apperror.Internal(fmt.Errorf("service: create product: %w", err))
 	}
@@ -106,6 +110,10 @@ func (s *ProductService) Update(ctx context.Context, actorID uint, id uint, req 
 		product.Name = *req.Name
 		changes["name"] = *req.Name
 	}
+	if req.SKU != nil {
+		product.SKU = *req.SKU
+		changes["sku"] = *req.SKU
+	}
 	if req.Description != nil {
 		product.Description = *req.Description
 	}
@@ -125,6 +133,9 @@ func (s *ProductService) Update(ctx context.Context, actorID uint, id uint, req 
 	}
 
 	if err := s.productRepo.Update(ctx, product); err != nil {
+		if errors.Is(err, repository.ErrSKUTaken) {
+			return nil, apperror.DuplicateEntry("SKU sudah digunakan produk lain", err)
+		}
 		return nil, apperror.Internal(fmt.Errorf("service: update product: %w", err))
 	}
 	s.recordAudit(ctx, actorID, "product.update", product.ID, changes)

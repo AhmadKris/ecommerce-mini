@@ -16,6 +16,7 @@ const product: Product = {
   id: 1,
   name: "Kopi Susu Gula Aren",
   slug: "kopi-susu-gula-aren",
+  sku: "KOPI-001",
   description: "",
   price: 18000,
   stock: 10,

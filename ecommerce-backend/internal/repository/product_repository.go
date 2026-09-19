@@ -16,6 +16,12 @@ import (
 // pre-checking (and racing) for availability.
 var ErrSlugTaken = errors.New("product slug already taken")
 
+// ErrSKUTaken is returned by Create/Update when the sku unique constraint is
+// violated. Unlike the slug, the SKU is admin-chosen, not generated, so
+// there's nothing to retry with — the caller surfaces this as a validation
+// error asking for a different SKU.
+var ErrSKUTaken = errors.New("product sku already taken")
+
 // Sort values ProductFilter.Sort accepts — anything else falls back to
 // SortNewest. Kept as a closed set (not a raw ORDER BY string) so a filter
 // value can never become a SQL-injection vector.
@@ -62,20 +68,36 @@ func NewProductRepository(db *gorm.DB) ProductRepository {
 
 func (r *productRepository) Create(ctx context.Context, product *model.Product) error {
 	if err := r.db.WithContext(ctx).Create(product).Error; err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == postgresUniqueViolation {
-			return fmt.Errorf("repository: create product: %w", ErrSlugTaken)
-		}
-		return fmt.Errorf("repository: create product: %w", err)
+		return fmt.Errorf("repository: create product: %w", translateUniqueViolation(err))
 	}
 	return nil
 }
 
 func (r *productRepository) Update(ctx context.Context, product *model.Product) error {
 	if err := r.db.WithContext(ctx).Save(product).Error; err != nil {
-		return fmt.Errorf("repository: update product: %w", err)
+		return fmt.Errorf("repository: update product: %w", translateUniqueViolation(err))
 	}
 	return nil
+}
+
+// translateUniqueViolation maps a Postgres unique-violation on products to
+// its sentinel error by which partial unique index fired — ConstraintName is
+// the index name for a unique index violation. Any other error, including a
+// unique violation on an index this doesn't recognize, passes through
+// unchanged.
+func translateUniqueViolation(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != postgresUniqueViolation {
+		return err
+	}
+	switch pgErr.ConstraintName {
+	case "idx_products_sku_active":
+		return ErrSKUTaken
+	case "idx_products_slug_active":
+		return ErrSlugTaken
+	default:
+		return err
+	}
 }
 
 // Delete soft-deletes a product (sets deleted_at, per model.Product's
@@ -152,7 +174,8 @@ func (r *productRepository) baseQuery(ctx context.Context, filter ProductFilter)
 			Where("categories.slug = ?", filter.CategorySlug)
 	}
 	if filter.Search != "" {
-		query = query.Where("products.name ILIKE ?", "%"+filter.Search+"%")
+		like := "%" + filter.Search + "%"
+		query = query.Where("products.name ILIKE ? OR products.sku ILIKE ?", like, like)
 	}
 	return query
 }

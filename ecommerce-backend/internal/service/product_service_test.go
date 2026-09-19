@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"gorm.io/gorm"
 
+	"ecommerce-backend/internal/apperror"
 	"ecommerce-backend/internal/model"
 	"ecommerce-backend/internal/repository"
+	"ecommerce-backend/internal/testutil"
 )
 
 type fakeProductRepo struct {
@@ -20,6 +23,9 @@ func newFakeProductRepo() *fakeProductRepo {
 }
 
 func (r *fakeProductRepo) Create(_ context.Context, product *model.Product) error {
+	if r.skuTaken(product.SKU, 0) {
+		return repository.ErrSKUTaken
+	}
 	product.ID = r.nextID
 	r.nextID++
 	r.products[product.ID] = product
@@ -27,8 +33,23 @@ func (r *fakeProductRepo) Create(_ context.Context, product *model.Product) erro
 }
 
 func (r *fakeProductRepo) Update(_ context.Context, product *model.Product) error {
+	if r.skuTaken(product.SKU, product.ID) {
+		return repository.ErrSKUTaken
+	}
 	r.products[product.ID] = product
 	return nil
+}
+
+func (r *fakeProductRepo) skuTaken(sku string, excludeID uint) bool {
+	if sku == "" {
+		return false
+	}
+	for _, product := range r.products {
+		if product.ID != excludeID && product.SKU == sku {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *fakeProductRepo) Delete(_ context.Context, id uint) error {
@@ -213,6 +234,57 @@ func TestProductService_Delete_RecordsAuditLogAndRemovesProduct(t *testing.T) {
 	if entry.Action != "product.delete" || entry.ActorID != 42 || entry.ResourceID != product.ID {
 		t.Errorf("audit entry = %+v, want product.delete by actor 42 for resource %d", entry, product.ID)
 	}
+}
+
+func TestProductService_Create_StoresSKU(t *testing.T) {
+	svc, _ := newTestProductService()
+
+	product, err := svc.Create(context.Background(), 1, model.CreateProductRequest{
+		Name: "Kopi Susu", SKU: "KOPI-001", Price: 18000, Stock: 10, CategoryID: 1,
+	})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if product.SKU != "KOPI-001" {
+		t.Errorf("SKU = %q, want KOPI-001", product.SKU)
+	}
+}
+
+func TestProductService_Create_RejectsDuplicateSKU(t *testing.T) {
+	svc, _ := newTestProductService()
+
+	_, err := svc.Create(context.Background(), 1, model.CreateProductRequest{
+		Name: "Kopi Susu", SKU: "KOPI-001", Price: 18000, Stock: 10, CategoryID: 1,
+	})
+	if err != nil {
+		t.Fatalf("first Create returned error: %v", err)
+	}
+
+	_, err = svc.Create(context.Background(), 1, model.CreateProductRequest{
+		Name: "Kopi Susu Lain", SKU: "KOPI-001", Price: 20000, Stock: 5, CategoryID: 1,
+	})
+	testutil.AssertAppError(t, err, apperror.CodeDuplicateEntry, http.StatusConflict)
+}
+
+func TestProductService_Update_RejectsDuplicateSKU(t *testing.T) {
+	svc, _ := newTestProductService()
+
+	_, err := svc.Create(context.Background(), 1, model.CreateProductRequest{
+		Name: "Kopi Susu", SKU: "KOPI-001", Price: 18000, Stock: 10, CategoryID: 1,
+	})
+	if err != nil {
+		t.Fatalf("first Create returned error: %v", err)
+	}
+	other, err := svc.Create(context.Background(), 1, model.CreateProductRequest{
+		Name: "Teh Tarik", SKU: "TEH-001", Price: 15000, Stock: 10, CategoryID: 1,
+	})
+	if err != nil {
+		t.Fatalf("second Create returned error: %v", err)
+	}
+
+	conflictingSKU := "KOPI-001"
+	_, err = svc.Update(context.Background(), 1, other.ID, model.UpdateProductRequest{SKU: &conflictingSKU})
+	testutil.AssertAppError(t, err, apperror.CodeDuplicateEntry, http.StatusConflict)
 }
 
 func TestProductService_Delete_NotFound(t *testing.T) {

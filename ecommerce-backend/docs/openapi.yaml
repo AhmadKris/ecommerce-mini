@@ -464,7 +464,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Dicocokkan terhadap nama produk (ILIKE).
+          description: Dicocokkan terhadap nama produk atau SKU (ILIKE).
         - name: sort
           in: query
           schema:
@@ -523,12 +523,19 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, category_id]
+              required: [name, sku, category_id]
               properties:
                 name:
                   type: string
                   minLength: 2
                   maxLength: 255
+                sku:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  description: >
+                    Admin-chosen, bukan digenerate otomatis (beda dari slug).
+                    Harus unik di antara produk yang belum dihapus.
                 description:
                   type: string
                 price:
@@ -560,6 +567,12 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission product:create
+        "409":
+          description: SKU sudah dipakai produk lain yang belum dihapus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/admin/products/{id}:
     put:
       summary: Update produk (butuh permission product:update)
@@ -584,6 +597,10 @@ paths:
               properties:
                 name:
                   type: string
+                sku:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
                 description:
                   type: string
                 price:
@@ -611,6 +628,12 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission product:update
+        "409":
+          description: SKU sudah dipakai produk lain yang belum dihapus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
     delete:
       summary: >
         Hapus produk (butuh permission product:delete). Soft-delete
