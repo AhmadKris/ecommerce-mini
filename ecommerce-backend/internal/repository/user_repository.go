@@ -32,6 +32,11 @@ type UserRepository interface {
 	// optionally filtered by search matching name or email — backs the
 	// admin customer list.
 	List(ctx context.Context, search string, page, limit int) ([]model.User, int64, error)
+	// UpdateRoles replaces the full role set for userID in a single
+	// GORM association call (which runs in its own transaction). Passing an
+	// empty slice removes all roles; callers must validate that at least one
+	// role exists before calling.
+	UpdateRoles(ctx context.Context, userID uint, roles []model.Role) error
 }
 
 type userRepository struct {
@@ -116,4 +121,12 @@ func (r *userRepository) List(ctx context.Context, search string, page, limit in
 	}
 
 	return users, total, nil
+}
+
+func (r *userRepository) UpdateRoles(ctx context.Context, userID uint, roles []model.Role) error {
+	user := model.User{ID: userID}
+	if err := r.db.WithContext(ctx).Model(&user).Association("Roles").Replace(roles); err != nil {
+		return fmt.Errorf("repository: update user roles: %w", err)
+	}
+	return nil
 }

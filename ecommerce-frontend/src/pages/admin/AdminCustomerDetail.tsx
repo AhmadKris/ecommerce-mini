@@ -1,13 +1,63 @@
+import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+import { Button } from "../../components/ui/Button";
 import { useAdminCustomer } from "../../hooks/useAdminCustomers";
 import { usePermission } from "../../hooks/usePermission";
+import { useRoles, useUpdateUserRoles } from "../../hooks/useRoles";
+import { useAuthStore } from "../../store/auth-store";
+import { ApiError } from "../../types/api";
 
 export function AdminCustomerDetail() {
   const canReadCustomers = usePermission("customer:read");
+  const canManageRoles = usePermission("user:manage");
   const { id = "" } = useParams<{ id: string }>();
   const customerId = Number(id);
   const { data: customer, isLoading, isError } = useAdminCustomer(customerId);
+  const { data: availableRoles } = useRoles();
+  const updateRoles = useUpdateUserRoles(customerId);
+  const currentUserId = useAuthStore((s) => s.userId);
+
+  // Track which role names are checked in the management form. Initialised
+  // lazily from the customer's current roles when they first load.
+  const [selectedRoles, setSelectedRoles] = useState<Set<string> | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Initialise the selection once customer data arrives (only once — the user
+  // owns the checkbox state from that point on).
+  if (customer && selectedRoles === null) {
+    setSelectedRoles(new Set(customer.roles.map((r) => r.name)));
+  }
+
+  const isSelf = currentUserId === customerId;
+
+  function handleToggleRole(roleName: string) {
+    setSelectedRoles((prev) => {
+      if (!prev) return prev;
+      const next = new Set(prev);
+      if (next.has(roleName)) {
+        next.delete(roleName);
+      } else {
+        next.add(roleName);
+      }
+      return next;
+    });
+    setSaveError(null);
+    setSaveSuccess(false);
+  }
+
+  function handleSaveRoles() {
+    if (!selectedRoles) return;
+    setSaveError(null);
+    setSaveSuccess(false);
+    updateRoles.mutate(Array.from(selectedRoles), {
+      onSuccess: () => setSaveSuccess(true),
+      onError: (err) => {
+        setSaveError(err instanceof ApiError ? err.message : "Gagal memperbarui role.");
+      },
+    });
+  }
 
   if (!canReadCustomers) {
     return <Navigate to="/admin" replace />;
@@ -55,8 +105,9 @@ export function AdminCustomerDetail() {
         </div>
       </div>
 
+      {/* Role & Permission view (always visible to customer:read) */}
       <div className="mt-4 rounded-md border border-(--border-default) bg-(--surface-card) p-4">
-        <p className="text-label-sm text-(--ink-secondary) mb-3">Role & Permission</p>
+        <p className="text-label-sm text-(--ink-secondary) mb-3">Role &amp; Permission</p>
         {customer.roles.length === 0 ? (
           <p className="text-body-sm text-(--ink-secondary)">Tidak ada role.</p>
         ) : (
@@ -83,6 +134,66 @@ export function AdminCustomerDetail() {
           </div>
         )}
       </div>
+
+      {/* Role management section — only shown if caller has user:manage */}
+      {canManageRoles && availableRoles && selectedRoles !== null && (
+        <div className="mt-4 rounded-md border border-(--border-default) bg-(--surface-card) p-4">
+          <p className="text-label-sm text-(--ink-secondary) mb-3">Manajemen Role</p>
+
+          {isSelf && (
+            <p className="text-body-sm text-warning-500 mb-3">
+              Anda tidak dapat menghapus role <strong>admin</strong> dari akun Anda sendiri.
+            </p>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {availableRoles.map((role) => {
+              // Prevent self-lockout: disable the admin checkbox for own account.
+              const isDisabled = isSelf && role.name === "admin";
+              return (
+                <label
+                  key={role.id}
+                  className={`flex items-center gap-3 ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                >
+                  <input
+                    type="checkbox"
+                    id={`role-${role.id}`}
+                    checked={selectedRoles.has(role.name)}
+                    disabled={isDisabled}
+                    onChange={() => handleToggleRole(role.name)}
+                    className="h-4 w-4 accent-(--color-primary-600)"
+                  />
+                  <span className="text-body-md text-(--ink-primary)">{role.name}</span>
+                  {role.permissions && role.permissions.length > 0 && (
+                    <span className="text-body-sm text-(--ink-tertiary)">
+                      ({role.permissions.length} permission)
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+
+          {saveError && (
+            <p role="alert" className="text-body-sm text-error-500 mt-3">
+              {saveError}
+            </p>
+          )}
+          {saveSuccess && (
+            <p role="status" className="text-body-sm text-success-600 mt-3">
+              Role berhasil diperbarui.
+            </p>
+          )}
+
+          <Button
+            className="mt-4"
+            disabled={updateRoles.isPending || selectedRoles.size === 0}
+            onClick={handleSaveRoles}
+          >
+            {updateRoles.isPending ? "Menyimpan..." : "Simpan Role"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

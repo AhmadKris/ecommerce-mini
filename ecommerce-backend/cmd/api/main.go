@@ -100,7 +100,7 @@ func main() {
 	reviewService := service.NewReviewService(reviewRepo, productRepo, auditLogRepo)
 	reviewHandler := handler.NewReviewHandler(reviewService)
 
-	customerService := service.NewCustomerService(userRepo)
+	customerService := service.NewCustomerService(userRepo, roleRepo, auditLogRepo)
 	customerHandler := handler.NewCustomerHandler(customerService)
 
 	reportRepo := repository.NewReportRepository(db)

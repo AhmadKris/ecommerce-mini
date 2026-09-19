@@ -16,6 +16,7 @@ import { AdminProducts } from "./pages/admin/AdminProducts";
 import { AdminPromotions } from "./pages/admin/AdminPromotions";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminReviews } from "./pages/admin/AdminReviews";
+import { AdminRoles } from "./pages/admin/AdminRoles";
 import { ProductForm } from "./pages/admin/ProductForm";
 import { ForgotPassword } from "./pages/auth/ForgotPassword";
 import { Login } from "./pages/auth/Login";
@@ -68,6 +69,7 @@ function App() {
           <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
           <Route path="/admin/customers" element={<AdminCustomers />} />
           <Route path="/admin/customers/:id" element={<AdminCustomerDetail />} />
+          <Route path="/admin/roles" element={<AdminRoles />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/promotions" element={<AdminPromotions />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />

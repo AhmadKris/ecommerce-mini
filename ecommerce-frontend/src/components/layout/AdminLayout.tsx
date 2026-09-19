@@ -9,6 +9,7 @@ const navItems = [
   { to: "/admin/categories", label: "Kategori" },
   { to: "/admin/orders", label: "Pesanan" },
   { to: "/admin/customers", label: "Pelanggan", permission: "customer:read" },
+  { to: "/admin/roles", label: "Role & Akses", permission: "user:manage" },
   { to: "/admin/inventory", label: "Stok" },
   { to: "/admin/promotions", label: "Promo" },
   { to: "/admin/reviews", label: "Ulasan" },
@@ -23,6 +24,7 @@ const breadcrumbSections: { prefix: string; label: string }[] = [
   { prefix: "/admin/categories", label: "Kategori" },
   { prefix: "/admin/orders", label: "Pesanan" },
   { prefix: "/admin/customers", label: "Pelanggan" },
+  { prefix: "/admin/roles", label: "Role & Akses" },
   { prefix: "/admin/inventory", label: "Stok" },
   { prefix: "/admin/promotions", label: "Promo" },
   { prefix: "/admin/reviews", label: "Ulasan" },
@@ -47,9 +49,11 @@ export function AdminLayout() {
   const location = useLocation();
   const canReadCustomers = usePermission("customer:read");
   const canReadReports = usePermission("report:read");
+  const canManageUsers = usePermission("user:manage");
   const grantedPermissions: Record<string, boolean> = {
     "customer:read": canReadCustomers,
     "report:read": canReadReports,
+    "user:manage": canManageUsers,
   };
   const visibleNavItems = navItems.filter((item) => !item.permission || grantedPermissions[item.permission]);
 

@@ -44,6 +44,10 @@ func (m *mockUserRepository) List(ctx context.Context, search string, page, limi
 	return users, args.Get(1).(int64), args.Error(2)
 }
 
+func (m *mockUserRepository) UpdateRoles(ctx context.Context, userID uint, roles []model.Role) error {
+	return m.Called(ctx, userID, roles).Error(0)
+}
+
 type mockPasswordResetStore struct {
 	mock.Mock
 }
