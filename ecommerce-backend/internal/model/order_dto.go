@@ -1,8 +1,11 @@
 package model
 
-// CheckoutRequest is the payload for POST /api/orders.
+// CheckoutRequest is the payload for POST /api/orders. PromoCode is
+// optional — an empty string means "no promotion applied", not "invalid
+// request".
 type CheckoutRequest struct {
 	ShippingAddress string `json:"shipping_address" binding:"required,min=10,max=500"`
+	PromoCode       string `json:"promo_code" binding:"omitempty,max=50"`
 }
 
 // OrderListQuery binds GET /api/orders query params.

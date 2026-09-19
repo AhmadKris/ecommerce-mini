@@ -29,7 +29,7 @@ const flatShippingCost = 25000
 
 // OrderRepository turns a user's cart into an order.
 type OrderRepository interface {
-	Checkout(ctx context.Context, userID uint, shippingAddress string) (*model.Order, error)
+	Checkout(ctx context.Context, userID uint, shippingAddress string, promoCode string) (*model.Order, error)
 	ListByUserID(ctx context.Context, userID uint, page, limit int) ([]model.Order, int64, error)
 	ListAll(ctx context.Context, page, limit int) ([]model.Order, int64, error)
 	FindByID(ctx context.Context, id uint) (*model.Order, error)
@@ -58,7 +58,7 @@ func NewOrderRepository(db *gorm.DB) OrderRepository {
 // by one. With it, the second transaction's lock acquisition blocks until
 // the first commits (releasing the lock with the already-decremented
 // value), so the second transaction's stock read is guaranteed current.
-func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAddress string) (*model.Order, error) {
+func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAddress string, promoCode string) (*model.Order, error) {
 	var order model.Order
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -95,6 +95,10 @@ func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAdd
 			orderItems = append(orderItems, orderItem)
 		}
 
+		if err := applyPromoCode(tx, &order, promoCode); err != nil {
+			return err
+		}
+
 		order.TotalAmount += order.ShippingCost
 
 		if err := tx.Create(&order).Error; err != nil {
@@ -120,26 +124,7 @@ func (r *orderRepository) Checkout(ctx context.Context, userID uint, shippingAdd
 		// Written in the same transaction as the stock decrement, not as a
 		// best-effort side effect afterwards — an audit trail that could
 		// silently go missing on a partial failure defeats its own purpose.
-		auditMetadata, err := json.Marshal(map[string]any{
-			"total_amount":  order.TotalAmount,
-			"shipping_cost": order.ShippingCost,
-			"item_count":    len(orderItems),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal audit metadata: %w", err)
-		}
-		auditLog := model.AuditLog{
-			ActorID:    userID,
-			Action:     "order.checkout",
-			Resource:   "order",
-			ResourceID: order.ID,
-			Metadata:   string(auditMetadata),
-		}
-		if err := tx.Create(&auditLog).Error; err != nil {
-			return err
-		}
-
-		return nil
+		return writeCheckoutAuditLog(tx, order, userID, len(orderItems))
 	})
 	if err != nil {
 		return nil, fmt.Errorf("repository: checkout: %w", err)
@@ -176,6 +161,48 @@ func lockAndReserveStock(tx *gorm.DB, cartItem model.CartItem) (model.OrderItem,
 	}
 	subtotal := product.Price * float64(cartItem.Quantity)
 	return orderItem, subtotal, nil
+}
+
+// writeCheckoutAuditLog records the order.checkout audit entry — split out
+// of Checkout for the same gocyclo reason as lockAndReserveStock/
+// applyPromoCode, not because it's reused elsewhere.
+func writeCheckoutAuditLog(tx *gorm.DB, order model.Order, userID uint, itemCount int) error {
+	auditMetadata, err := json.Marshal(map[string]any{
+		"total_amount":    order.TotalAmount,
+		"shipping_cost":   order.ShippingCost,
+		"discount_amount": order.DiscountAmount,
+		"item_count":      itemCount,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal audit metadata: %w", err)
+	}
+	auditLog := model.AuditLog{
+		ActorID:    userID,
+		Action:     "order.checkout",
+		Resource:   "order",
+		ResourceID: order.ID,
+		Metadata:   string(auditMetadata),
+	}
+	return tx.Create(&auditLog).Error
+}
+
+// applyPromoCode redeems promoCode against order's current TotalAmount
+// (items-only subtotal at this point, before shipping is added) and, if
+// valid, applies the discount to order in place. A no-op when promoCode is
+// empty — split out of Checkout purely to keep its cyclomatic complexity
+// under the project's gocyclo limit, same reasoning as lockAndReserveStock.
+func applyPromoCode(tx *gorm.DB, order *model.Order, promoCode string) error {
+	if promoCode == "" {
+		return nil
+	}
+	promotion, discount, err := lockAndRedeemPromotion(tx, promoCode, order.TotalAmount)
+	if err != nil {
+		return err
+	}
+	order.DiscountAmount = discount
+	order.PromotionID = &promotion.ID
+	order.TotalAmount -= discount
+	return nil
 }
 
 func (r *orderRepository) ListByUserID(ctx context.Context, userID uint, page, limit int) ([]model.Order, int64, error) {

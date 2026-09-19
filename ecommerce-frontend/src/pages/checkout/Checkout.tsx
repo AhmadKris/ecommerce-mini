@@ -36,7 +36,11 @@ export function Checkout() {
 
   function onSubmit(values: CheckoutFormValues) {
     checkout.mutate(
-      { shippingAddress: values.shippingAddress, idempotencyKey: idempotencyKeyRef.current },
+      {
+        shippingAddress: values.shippingAddress,
+        promoCode: values.promoCode,
+        idempotencyKey: idempotencyKeyRef.current,
+      },
       { onSuccess: (order) => setCompletedOrder(order) },
     );
   }
@@ -47,7 +51,10 @@ export function Checkout() {
         <h1 className="text-heading-xl text-(--ink-primary)">Pesanan berhasil dibuat</h1>
         <p className="text-body-md text-(--ink-secondary) mt-2">
           Order #{completedOrder.id} — total {formatCurrency(completedOrder.total_amount)}
-          {" "}(termasuk ongkir {formatCurrency(completedOrder.shipping_cost)})
+          {" "}(termasuk ongkir {formatCurrency(completedOrder.shipping_cost)}
+          {completedOrder.discount_amount > 0 &&
+            `, diskon ${formatCurrency(completedOrder.discount_amount)}`}
+          )
         </p>
         <Link to="/orders" className="text-body-sm text-(--ink-link) mt-4 inline-block">
           Lihat riwayat pesanan
@@ -105,6 +112,11 @@ export function Checkout() {
           label="Alamat Pengiriman"
           error={errors.shippingAddress?.message}
           {...register("shippingAddress")}
+        />
+        <Input
+          label="Kode Promo (opsional)"
+          error={errors.promoCode?.message}
+          {...register("promoCode")}
         />
         {checkout.isError && (
           <p role="alert" className="text-body-sm text-error-500">

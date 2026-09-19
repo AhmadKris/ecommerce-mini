@@ -21,7 +21,7 @@ func newFakeOrderRepo(orders ...*model.Order) *fakeOrderRepo {
 	return repo
 }
 
-func (r *fakeOrderRepo) Checkout(context.Context, uint, string) (*model.Order, error) {
+func (r *fakeOrderRepo) Checkout(context.Context, uint, string, string) (*model.Order, error) {
 	return nil, nil
 }
 

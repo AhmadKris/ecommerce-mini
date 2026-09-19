@@ -7,5 +7,6 @@ export const checkoutSchema = z.object({
     .string()
     .min(10, "Alamat pengiriman minimal 10 karakter")
     .max(500, "Alamat pengiriman maksimal 500 karakter"),
+  promoCode: z.string().optional(),
 });
 export type CheckoutFormValues = z.infer<typeof checkoutSchema>;

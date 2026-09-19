@@ -19,6 +19,8 @@ export interface Order {
   status: string;
   total_amount: number;
   shipping_cost: number;
+  discount_amount: number;
+  promotion_id: number | null;
   shipping_address: string;
   created_at: string;
   items: OrderItem[];

@@ -9,6 +9,14 @@ import { server } from "../../test/msw-server";
 import { renderWithProviders } from "../../test/test-utils";
 
 function renderDetailPage(slug: string) {
+  server.use(
+    http.get(`${config.apiBaseUrl}/products/${slug}/reviews`, () =>
+      HttpResponse.json({
+        success: true,
+        data: { items: [], meta: { page: 1, limit: 10, total: 0, total_pages: 0 } },
+      }),
+    ),
+  );
   return renderWithProviders(
     <Routes>
       <Route path="/products/:slug" element={<ProductDetail />} />

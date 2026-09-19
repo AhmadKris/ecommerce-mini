@@ -43,7 +43,12 @@ func (r *fakeProductRepo) FindByID(_ context.Context, id uint) (*model.Product, 
 	return r.products[id], nil
 }
 
-func (r *fakeProductRepo) FindBySlug(context.Context, string) (*model.Product, error) {
+func (r *fakeProductRepo) FindBySlug(_ context.Context, slug string) (*model.Product, error) {
+	for _, product := range r.products {
+		if product.Slug == slug {
+			return product, nil
+		}
+	}
 	return nil, nil
 }
 

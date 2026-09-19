@@ -7,6 +7,8 @@ const navItems = [
   { to: "/admin/products", label: "Produk" },
   { to: "/admin/categories", label: "Kategori" },
   { to: "/admin/orders", label: "Pesanan" },
+  { to: "/admin/promotions", label: "Promo" },
+  { to: "/admin/reviews", label: "Ulasan" },
 ];
 
 // Maps a path prefix to the breadcrumb section label shown in the top bar —
@@ -16,6 +18,8 @@ const breadcrumbSections: { prefix: string; label: string }[] = [
   { prefix: "/admin/products", label: "Produk" },
   { prefix: "/admin/categories", label: "Kategori" },
   { prefix: "/admin/orders", label: "Pesanan" },
+  { prefix: "/admin/promotions", label: "Promo" },
+  { prefix: "/admin/reviews", label: "Ulasan" },
   { prefix: "/admin", label: "Dashboard" },
 ];
 

@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 
 import { AddToCartButton } from "../../components/product/AddToCartButton";
+import { ProductReviews } from "../../components/product/ProductReviews";
 import { formatCurrency } from "../../lib/format";
 import { useProduct } from "../../hooks/useProducts";
 
@@ -67,6 +68,8 @@ export function ProductDetail() {
           </div>
         </div>
       </div>
+
+      <ProductReviews slug={product.slug} />
     </main>
   );
 }

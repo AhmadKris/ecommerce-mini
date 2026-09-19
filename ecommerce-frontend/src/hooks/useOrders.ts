@@ -15,6 +15,8 @@ export function useOrders(page = 1) {
 
 interface CheckoutInput {
   shippingAddress: string;
+  /** Uppercased/trimmed server-side — sent as-is, empty string omitted. */
+  promoCode?: string;
   /**
    * Sent as Idempotency-Key so retrying the same checkout attempt (e.g. the
    * user clicking "Buat Pesanan" again after a dropped connection) replays
@@ -31,11 +33,11 @@ export function useCheckout() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ shippingAddress, idempotencyKey }: CheckoutInput) =>
+    mutationFn: ({ shippingAddress, promoCode, idempotencyKey }: CheckoutInput) =>
       apiClient
         .post<Order>(
           "/orders",
-          { shipping_address: shippingAddress },
+          { shipping_address: shippingAddress, promo_code: promoCode || undefined },
           { headers: { "Idempotency-Key": idempotencyKey } },
         )
         .then((response) => response.data),

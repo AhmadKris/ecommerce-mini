@@ -9,6 +9,8 @@ import { AdminCategories } from "./pages/admin/AdminCategories";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminOrders } from "./pages/admin/AdminOrders";
 import { AdminProducts } from "./pages/admin/AdminProducts";
+import { AdminPromotions } from "./pages/admin/AdminPromotions";
+import { AdminReviews } from "./pages/admin/AdminReviews";
 import { ProductForm } from "./pages/admin/ProductForm";
 import { Login } from "./pages/auth/Login";
 import { Register } from "./pages/auth/Register";
@@ -50,6 +52,8 @@ function App() {
           <Route path="/admin/products/:id/edit" element={<ProductForm />} />
           <Route path="/admin/categories" element={<AdminCategories />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/promotions" element={<AdminPromotions />} />
+          <Route path="/admin/reviews" element={<AdminReviews />} />
         </Route>
       </Route>
     </Routes>

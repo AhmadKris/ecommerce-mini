@@ -97,6 +97,47 @@ describe("Checkout page", () => {
     expect(screen.getByText(/order #42/i)).toBeInTheDocument();
   });
 
+  it("sends the promo code and shows the discount in the confirmation", async () => {
+    logIn();
+    let receivedBody: unknown;
+    server.use(
+      http.get(cartUrl, () =>
+        HttpResponse.json({ success: true, data: { items: [sampleItem], total: 18000 } }),
+      ),
+      http.post(ordersUrl, async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json(
+          {
+            success: true,
+            data: {
+              id: 43,
+              user_id: 1,
+              status: "pending",
+              total_amount: 41200,
+              shipping_cost: 25000,
+              discount_amount: 1800,
+              promotion_id: 1,
+              shipping_address: "Jl. Merdeka No. 1",
+              created_at: "2026-01-01T00:00:00Z",
+              items: [],
+            },
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<Checkout />);
+
+    await user.type(await screen.findByLabelText(/alamat pengiriman/i), "Jl. Merdeka No. 1");
+    await user.type(screen.getByLabelText(/kode promo/i), "hemat10");
+    await user.click(screen.getByRole("button", { name: /buat pesanan/i }));
+
+    expect(await screen.findByText(/pesanan berhasil dibuat/i)).toBeInTheDocument();
+    expect(screen.getByText(/diskon rp\s?1\.800/i)).toBeInTheDocument();
+    expect(receivedBody).toMatchObject({ promo_code: "hemat10" });
+  });
+
   it("shows the server error when checkout fails (e.g. insufficient stock)", async () => {
     logIn();
     server.use(

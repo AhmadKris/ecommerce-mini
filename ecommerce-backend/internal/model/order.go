@@ -23,6 +23,8 @@ type Order struct {
 	Status          string    `json:"status"`
 	TotalAmount     float64   `json:"total_amount"`
 	ShippingCost    float64   `json:"shipping_cost"`
+	DiscountAmount  float64   `json:"discount_amount"`
+	PromotionID     *uint     `json:"promotion_id"`
 	ShippingAddress string    `json:"shipping_address"`
 	CreatedAt       time.Time `json:"created_at"`
 

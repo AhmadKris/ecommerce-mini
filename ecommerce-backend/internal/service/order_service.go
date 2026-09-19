@@ -42,13 +42,22 @@ func NewOrderService(orderRepo repository.OrderRepository, auditLogRepo reposito
 // live in the repository (see OrderRepository.Checkout) — this method's
 // job is just translating its sentinel errors into client-facing ones.
 func (s *OrderService) Checkout(ctx context.Context, userID uint, req model.CheckoutRequest) (*model.Order, error) {
-	order, err := s.orderRepo.Checkout(ctx, userID, req.ShippingAddress)
+	order, err := s.orderRepo.Checkout(ctx, userID, req.ShippingAddress, req.PromoCode)
 	if err != nil {
 		if errors.Is(err, repository.ErrEmptyCart) {
 			return nil, apperror.Validation("Keranjang Anda kosong, tidak bisa checkout", nil)
 		}
 		if errors.Is(err, repository.ErrInsufficientStock) {
 			return nil, apperror.Conflict("Stok tidak mencukupi untuk salah satu produk di keranjang", err)
+		}
+		if errors.Is(err, repository.ErrPromotionInvalid) {
+			return nil, apperror.Validation("Kode promo tidak valid atau sudah tidak berlaku", nil)
+		}
+		if errors.Is(err, repository.ErrPromotionExhausted) {
+			return nil, apperror.Conflict("Kode promo sudah mencapai batas penggunaan", err)
+		}
+		if errors.Is(err, repository.ErrPromotionMinimumNotMet) {
+			return nil, apperror.Validation("Total belanja belum memenuhi syarat minimum kode promo ini", nil)
 		}
 		return nil, apperror.Internal(fmt.Errorf("service: checkout: %w", err))
 	}

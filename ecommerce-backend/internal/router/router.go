@@ -31,6 +31,8 @@ type Deps struct {
 	OrderHandler     *handler.OrderHandler
 	AddressHandler   *handler.AddressHandler
 	InventoryHandler *handler.InventoryHandler
+	PromotionHandler *handler.PromotionHandler
+	ReviewHandler    *handler.ReviewHandler
 }
 
 // New builds the Gin engine with global middleware and all route groups
@@ -64,6 +66,8 @@ func New(deps Deps) *gin.Engine {
 	registerOrderRoutes(api, deps)
 	registerAddressRoutes(api, deps)
 	registerInventoryRoutes(api, deps)
+	registerPromotionRoutes(api, deps)
+	registerReviewRoutes(api, deps)
 
 	return engine
 }

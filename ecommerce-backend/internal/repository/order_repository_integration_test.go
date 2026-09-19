@@ -34,12 +34,12 @@ func TestOrderRepository_Checkout_ConcurrentRequestsDoNotOversell(t *testing.T) 
 
 	go func() {
 		defer wg.Done()
-		_, err := orderRepo.Checkout(context.Background(), userA, "Jl. A No. 1")
+		_, err := orderRepo.Checkout(context.Background(), userA, "Jl. A No. 1", "")
 		results[0] = err
 	}()
 	go func() {
 		defer wg.Done()
-		_, err := orderRepo.Checkout(context.Background(), userB, "Jl. B No. 1")
+		_, err := orderRepo.Checkout(context.Background(), userB, "Jl. B No. 1", "")
 		results[1] = err
 	}()
 	wg.Wait()
@@ -90,7 +90,7 @@ func TestOrderRepository_Checkout_SnapshotsProductName(t *testing.T) {
 	productID := seedCategoryAndProduct(t, db, 5)
 	userID := seedUserWithCartItem(t, db, "renamer@example.com", productID, 1)
 
-	order, err := orderRepo.Checkout(context.Background(), userID, "Jl. Snapshot No. 1")
+	order, err := orderRepo.Checkout(context.Background(), userID, "Jl. Snapshot No. 1", "")
 	if err != nil {
 		t.Fatalf("Checkout: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestOrderRepository_Checkout_EmptyCartReturnsError(t *testing.T) {
 		t.Fatalf("seed empty cart: %v", err)
 	}
 
-	_, err := orderRepo.Checkout(context.Background(), user.ID, "Jl. Kosong No. 1")
+	_, err := orderRepo.Checkout(context.Background(), user.ID, "Jl. Kosong No. 1", "")
 	if !errors.Is(err, repository.ErrEmptyCart) {
 		t.Fatalf("Checkout error = %v, want ErrEmptyCart", err)
 	}

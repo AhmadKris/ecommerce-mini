@@ -687,8 +687,14 @@ paths:
         semua dalam satu transaction (row lock SELECT...FOR UPDATE per
         produk, mencegah oversell saat ada checkout bersamaan untuk produk
         yang sama). Response's total_amount sudah termasuk shipping_cost
-        (flat rate saat ini) — satu-satunya angka total yang jadi sumber
-        kebenaran, jangan dihitung ulang di client.
+        dan dikurangi discount_amount (flat rate ongkir saat ini) —
+        satu-satunya angka total yang jadi sumber kebenaran, jangan dihitung
+        ulang di client. promo_code opsional — divalidasi & di-redeem
+        (row lock, mencegah over-redeem saat ada checkout bersamaan dengan
+        kode yang sama) di transaction yang sama dengan pengurangan stok.
+        Kode tidak valid/kedaluwarsa/melebihi batas pakai/di bawah minimum
+        pembelian akan menggagalkan SELURUH checkout (409/400), bukan
+        diam-diam melanjutkan tanpa diskon.
       security:
         - bearerAuth: []
       parameters:
@@ -716,6 +722,9 @@ paths:
                   type: string
                   minLength: 10
                   maxLength: 500
+                promo_code:
+                  type: string
+                  description: Opsional. Kode promo, tidak case-sensitive.
       responses:
         "201":
           description: Order berhasil dibuat (atau di-replay dari Idempotency-Key sebelumnya)
@@ -911,3 +920,296 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission inventory:read
+  /api/admin/promotions:
+    get:
+      summary: List semua kode promo (admin, butuh permission promotion:manage)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "{items}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission promotion:manage
+    post:
+      summary: >
+        Buat kode promo baru (admin, butuh permission promotion:manage).
+        Code dinormalisasi ke uppercase.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, type, value, usage_limit, starts_at, ends_at]
+              properties:
+                code:
+                  type: string
+                  minLength: 3
+                type:
+                  type: string
+                  enum: [percentage, fixed]
+                  description: >
+                    percentage: value 1-100, persen dari subtotal item
+                    (belum termasuk ongkir). fixed: value adalah potongan
+                    IDR flat. Keduanya dibatasi maksimum sebesar subtotal —
+                    diskon tidak pernah membuat total jadi negatif.
+                value:
+                  type: number
+                minimum_purchase:
+                  type: number
+                usage_limit:
+                  type: integer
+                  minimum: 1
+                starts_at:
+                  type: string
+                  format: date-time
+                ends_at:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Promo berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission promotion:manage
+        "409":
+          description: Kode promo sudah dipakai
+  /api/admin/promotions/{id}:
+    put:
+      summary: >
+        Ubah promo (full replace kecuali code — code tidak bisa diubah,
+        hapus lalu buat baru kalau perlu kode berbeda).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, value, usage_limit, starts_at, ends_at, status]
+              properties:
+                type:
+                  type: string
+                  enum: [percentage, fixed]
+                value:
+                  type: number
+                minimum_purchase:
+                  type: number
+                usage_limit:
+                  type: integer
+                starts_at:
+                  type: string
+                  format: date-time
+                ends_at:
+                  type: string
+                  format: date-time
+                status:
+                  type: string
+                  enum: [active, inactive]
+      responses:
+        "200":
+          description: Promo berhasil diubah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission promotion:manage
+        "404":
+          description: Promo tidak ditemukan
+    delete:
+      summary: >
+        Hapus promo. Order yang sudah redeem kode ini tetap menyimpan
+        discount_amount-nya (promotion_id di order jadi NULL, snapshot
+        angka diskon tidak berubah).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Promo berhasil dihapus
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission promotion:manage
+        "404":
+          description: Promo tidak ditemukan
+  /api/products/{slug}/reviews:
+    get:
+      summary: List ulasan produk (public) — hanya status approved yang tampil
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+      responses:
+        "200":
+          description: "{items, meta} — lihat konvensi list endpoint di .claude/CLAUDE.md"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "404":
+          description: Produk tidak ditemukan
+    post:
+      summary: >
+        Buat ulasan untuk produk (butuh login). Server memverifikasi sendiri
+        bahwa caller punya order berstatus delivered yang berisi produk ini —
+        order_id tidak diminta dari client, jadi tidak bisa memalsukan
+        pembelian. Satu user hanya bisa mengulas satu produk sekali.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating, title, body]
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                title:
+                  type: string
+                  minLength: 3
+                  maxLength: 255
+                body:
+                  type: string
+                  minLength: 10
+                  maxLength: 2000
+      responses:
+        "201":
+          description: >
+            Ulasan dibuat dengan status pending — baru tampil di halaman
+            produk publik setelah disetujui admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: Data ulasan tidak valid
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Caller tidak punya order delivered yang berisi produk ini
+        "404":
+          description: Produk tidak ditemukan
+        "409":
+          description: Caller sudah pernah mengulas produk ini
+  /api/admin/reviews:
+    get:
+      summary: >
+        List semua ulasan untuk moderasi (admin, butuh permission
+        review:moderate), semua status ikut tampil.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+      responses:
+        "200":
+          description: "{items, meta}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission review:moderate
+  /api/admin/reviews/{id}/status:
+    patch:
+      summary: >
+        Moderasi ulasan — approve membuatnya tampil di halaman produk,
+        reject menyembunyikannya permanen (admin, butuh permission
+        review:moderate).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+      responses:
+        "200":
+          description: Status ulasan berhasil diubah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          description: Status tidak valid
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission review:moderate
+        "404":
+          description: Ulasan tidak ditemukan
