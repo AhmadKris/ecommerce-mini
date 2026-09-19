@@ -28,6 +28,10 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByID(ctx context.Context, id uint) (*model.User, error)
 	UpdatePassword(ctx context.Context, userID uint, passwordHash string) error
+	// List returns a page of users (with roles preloaded), newest first,
+	// optionally filtered by search matching name or email — backs the
+	// admin customer list.
+	List(ctx context.Context, search string, page, limit int) ([]model.User, int64, error)
 }
 
 type userRepository struct {
@@ -85,4 +89,31 @@ func (r *userRepository) UpdatePassword(ctx context.Context, userID uint, passwo
 		return fmt.Errorf("repository: update password: %w", err)
 	}
 	return nil
+}
+
+func (r *userRepository) List(ctx context.Context, search string, page, limit int) ([]model.User, int64, error) {
+	query := r.db.WithContext(ctx).Model(&model.User{})
+	if search != "" {
+		like := "%" + search + "%"
+		query = query.Where("name ILIKE ? OR email ILIKE ?", like, like)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("repository: count users: %w", err)
+	}
+
+	listQuery := r.db.WithContext(ctx).Preload("Roles")
+	if search != "" {
+		like := "%" + search + "%"
+		listQuery = listQuery.Where("name ILIKE ? OR email ILIKE ?", like, like)
+	}
+
+	var users []model.User
+	err := listQuery.Order("created_at DESC").Offset((page - 1) * limit).Limit(limit).Find(&users).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("repository: list users: %w", err)
+	}
+
+	return users, total, nil
 }

@@ -5,6 +5,13 @@ export interface AuthTokens {
   expires_in: number;
 }
 
+/** The logged-in user's own profile, from GET /auth/me. */
+export interface UserProfile {
+  id: number;
+  name: string;
+  email: string;
+}
+
 /**
  * Claims carried by the access token JWT (see internal/auth.AccessClaims on
  * the backend). Decoded client-side purely to drive UI — the backend, not

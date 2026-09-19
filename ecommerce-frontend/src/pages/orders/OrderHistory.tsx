@@ -40,7 +40,11 @@ export function OrderHistory() {
       <h1 className="text-heading-xl text-(--ink-primary) mb-6">Riwayat Pesanan</h1>
       <div className="flex flex-col gap-4">
         {data.items.map((order) => (
-          <div key={order.id} className="rounded-md border border-(--border-default) bg-(--surface-card) p-4">
+          <Link
+            key={order.id}
+            to={`/orders/${order.id}`}
+            className="block rounded-md border border-(--border-default) bg-(--surface-card) p-4 hover:bg-neutral-50"
+          >
             <div className="flex items-center justify-between">
               <span className="text-heading-sm text-(--ink-primary)">Order #{order.id}</span>
               <span className="text-label-sm rounded-full bg-warning-100 px-2.5 py-1 text-warning-500">
@@ -52,7 +56,7 @@ export function OrderHistory() {
               {order.items.length} produk
             </p>
             <p className="text-data-md text-(--ink-primary) mt-2">{formatCurrency(order.total_amount)}</p>
-          </div>
+          </Link>
         ))}
       </div>
     </main>

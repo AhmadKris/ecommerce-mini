@@ -7,6 +7,7 @@ import { Header } from "./components/layout/Header";
 import { Home } from "./pages/Home";
 import { AdminCategories } from "./pages/admin/AdminCategories";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminInventory } from "./pages/admin/AdminInventory";
 import { AdminOrderDetail } from "./pages/admin/AdminOrderDetail";
 import { AdminOrders } from "./pages/admin/AdminOrders";
 import { AdminProducts } from "./pages/admin/AdminProducts";
@@ -19,7 +20,9 @@ import { Register } from "./pages/auth/Register";
 import { ResetPassword } from "./pages/auth/ResetPassword";
 import { Cart } from "./pages/cart/Cart";
 import { Checkout } from "./pages/checkout/Checkout";
+import { OrderDetail } from "./pages/orders/OrderDetail";
 import { OrderHistory } from "./pages/orders/OrderHistory";
+import { Profile } from "./pages/profile/Profile";
 import { ProductDetail } from "./pages/products/ProductDetail";
 import { ProductList } from "./pages/products/ProductList";
 
@@ -47,6 +50,8 @@ function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
+          <Route path="/orders/:id" element={<OrderDetail />} />
+          <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>
       <Route element={<AdminRoute />}>
@@ -58,6 +63,7 @@ function App() {
           <Route path="/admin/categories" element={<AdminCategories />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
+          <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/promotions" element={<AdminPromotions />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />
         </Route>

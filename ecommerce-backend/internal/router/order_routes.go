@@ -23,6 +23,7 @@ func registerOrderRoutes(api *gin.RouterGroup, deps Deps) {
 	orders := api.Group("/orders", middleware.RequireAuth(deps.Tokens))
 	orders.POST("", middleware.Idempotency(deps.Cache, idempotencyTTL), deps.OrderHandler.Checkout)
 	orders.GET("", middleware.RequirePermission("order:read_own"), deps.OrderHandler.List)
+	orders.GET("/:id", middleware.RequirePermission("order:read_own"), deps.OrderHandler.GetOwnByID)
 
 	adminOrders := api.Group("/admin/orders", middleware.RequireAuth(deps.Tokens))
 	adminOrders.GET("", middleware.RequirePermission("order:read_all"), deps.OrderHandler.ListAll)

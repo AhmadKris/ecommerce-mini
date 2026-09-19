@@ -826,6 +826,31 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission order:read_own
+  /api/orders/{id}:
+    get:
+      summary: >
+        Detail satu order milik user yang login (butuh permission
+        order:read_own). Order milik user lain membalas 404, bukan 403 —
+        supaya ID order tidak bisa dipakai enumerasi order siapa pun.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "404":
+          description: Order tidak ditemukan atau bukan milik user yang login
   /api/admin/orders:
     get:
       summary: Riwayat order SELURUH user (admin, butuh permission order:read_all)
@@ -1298,3 +1323,63 @@ paths:
           description: Token valid tapi tidak punya permission review:moderate
         "404":
           description: Ulasan tidak ditemukan
+  /api/admin/customers:
+    get:
+      summary: >
+        List akun terdaftar (admin, butuh permission customer:read).
+        Read-only — belum ada endpoint ubah role/permission user (lihat
+        .claude/CLAUDE.md Known Issues).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Dicocokkan terhadap nama atau email (ILIKE).
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+      responses:
+        "200":
+          description: "{items, meta} — lihat konvensi list endpoint di .claude/CLAUDE.md"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission customer:read
+  /api/admin/customers/{id}:
+    get:
+      summary: Detail satu akun terdaftar berikut roles-nya (admin, butuh permission customer:read)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission customer:read
+        "404":
+          description: Customer tidak ditemukan

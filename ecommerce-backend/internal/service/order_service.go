@@ -123,6 +123,22 @@ func (s *OrderService) GetByID(ctx context.Context, orderID uint) (*model.Order,
 	return order, nil
 }
 
+// GetOwnByID returns a single order with its items, but only if it belongs
+// to userID — the customer-facing counterpart of GetByID. Same row-level
+// ownership pattern as AddressService.findOwnedAddress: a mismatch reports
+// NotFound, never Forbidden, so a customer probing other order IDs can't
+// tell which ones actually exist.
+func (s *OrderService) GetOwnByID(ctx context.Context, userID, orderID uint) (*model.Order, error) {
+	order, err := s.orderRepo.FindByID(ctx, orderID)
+	if err != nil {
+		return nil, apperror.Internal(fmt.Errorf("service: get own order: %w", err))
+	}
+	if order == nil || order.UserID != userID {
+		return nil, apperror.NotFound("Order tidak ditemukan", nil)
+	}
+	return order, nil
+}
+
 // UpdateStatus transitions an order to newStatus, rejecting any transition
 // not in orderStatusTransitions (e.g. "delivered" back to "pending", or any
 // move out of a terminal state) with a 409 rather than silently accepting

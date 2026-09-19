@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import { useCheckout, useOrders } from "./useOrders";
+import { useCheckout, useOrder, useOrders } from "./useOrders";
 import { config } from "../lib/config";
 import { server } from "../test/msw-server";
 
@@ -29,6 +29,49 @@ describe("useOrders", () => {
     const { result } = renderHook(() => useOrders(), { wrapper });
 
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
+  });
+});
+
+describe("useOrder", () => {
+  it("fetches a single order the caller owns", async () => {
+    server.use(
+      http.get(`${ordersUrl}/9`, () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            id: 9,
+            user_id: 1,
+            status: "delivered",
+            total_amount: 50000,
+            shipping_cost: 25000,
+            discount_amount: 0,
+            promotion_id: null,
+            shipping_address: "Jl. Test No 1",
+            created_at: "2026-01-01T00:00:00Z",
+            items: [],
+          },
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useOrder(9), { wrapper });
+
+    await waitFor(() => expect(result.current.data?.id).toBe(9));
+  });
+
+  it("surfaces the backend's not-found error for another user's order", async () => {
+    server.use(
+      http.get(`${ordersUrl}/1`, () =>
+        HttpResponse.json(
+          { success: false, error: { code: "NOT_FOUND", message: "Order tidak ditemukan", details: null } },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useOrder(1), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 });
 

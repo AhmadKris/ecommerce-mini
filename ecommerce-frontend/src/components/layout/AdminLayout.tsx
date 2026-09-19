@@ -7,6 +7,7 @@ const navItems = [
   { to: "/admin/products", label: "Produk" },
   { to: "/admin/categories", label: "Kategori" },
   { to: "/admin/orders", label: "Pesanan" },
+  { to: "/admin/inventory", label: "Stok" },
   { to: "/admin/promotions", label: "Promo" },
   { to: "/admin/reviews", label: "Ulasan" },
 ];
@@ -18,6 +19,7 @@ const breadcrumbSections: { prefix: string; label: string }[] = [
   { prefix: "/admin/products", label: "Produk" },
   { prefix: "/admin/categories", label: "Kategori" },
   { prefix: "/admin/orders", label: "Pesanan" },
+  { prefix: "/admin/inventory", label: "Stok" },
   { prefix: "/admin/promotions", label: "Promo" },
   { prefix: "/admin/reviews", label: "Ulasan" },
   { prefix: "/admin", label: "Dashboard" },

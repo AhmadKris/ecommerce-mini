@@ -72,6 +72,45 @@ func TestOrderService_GetByID(t *testing.T) {
 	})
 }
 
+func TestOrderService_GetOwnByID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("owner can fetch their own order", func(t *testing.T) {
+		t.Parallel()
+
+		orderRepo := newFakeOrderRepo(&model.Order{ID: 1, UserID: 42, Status: model.OrderStatusPaid})
+		svc := NewOrderService(orderRepo, &fakeAuditLogRepo{})
+
+		order, err := svc.GetOwnByID(context.Background(), 42, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if order.ID != 1 {
+			t.Errorf("ID = %d, want 1", order.ID)
+		}
+	})
+
+	t.Run("another user's order reports not found, not forbidden", func(t *testing.T) {
+		t.Parallel()
+
+		orderRepo := newFakeOrderRepo(&model.Order{ID: 1, UserID: 42, Status: model.OrderStatusPaid})
+		svc := NewOrderService(orderRepo, &fakeAuditLogRepo{})
+
+		_, err := svc.GetOwnByID(context.Background(), 999, 1)
+		testutil.AssertAppError(t, err, apperror.CodeNotFound, 404)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
+		orderRepo := newFakeOrderRepo()
+		svc := NewOrderService(orderRepo, &fakeAuditLogRepo{})
+
+		_, err := svc.GetOwnByID(context.Background(), 42, 999)
+		testutil.AssertAppError(t, err, apperror.CodeNotFound, 404)
+	})
+}
+
 func TestOrderService_UpdateStatus_AllowsValidForwardTransitions(t *testing.T) {
 	t.Parallel()
 

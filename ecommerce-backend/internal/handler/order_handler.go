@@ -59,6 +59,23 @@ func (h *OrderHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": orders, "meta": meta}})
 }
 
+// GetOwnByID handles GET /api/orders/:id.
+func (h *OrderHandler) GetOwnByID(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		_ = c.Error(apperror.Validation("ID order tidak valid", []string{"id: must be an integer"}))
+		return
+	}
+
+	userID, _ := middleware.UserIDFromContext(c)
+	order, err := h.orderService.GetOwnByID(c.Request.Context(), userID, uint(id))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": order})
+}
+
 // ListAll handles GET /api/admin/orders.
 func (h *OrderHandler) ListAll(c *gin.Context) {
 	var query model.OrderListQuery

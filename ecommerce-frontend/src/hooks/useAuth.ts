@@ -1,9 +1,9 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "../lib/api-client";
 import type { LoginFormValues, RegisterFormValues } from "../schemas/auth";
 import { useAuthStore } from "../store/auth-store";
-import type { AuthTokens } from "../types/auth";
+import type { AuthTokens, UserProfile } from "../types/auth";
 
 interface MessageResponse {
   message: string;
@@ -31,6 +31,16 @@ export function useLogin() {
     mutationFn: (payload: LoginFormValues) =>
       apiClient.post<AuthTokens>("/auth/login", payload).then((response) => response.data),
     onSuccess: (tokens) => setSession(tokens),
+  });
+}
+
+/** Fetches the logged-in user's own profile (name/email) — the first real
+ * consumer of GET /auth/me, which existed on the backend since Fase 1 but
+ * had no frontend caller until the Profile page needed it. */
+export function useMe() {
+  return useQuery({
+    queryKey: ["me"],
+    queryFn: () => apiClient.get<UserProfile>("/auth/me").then((response) => response.data),
   });
 }
 

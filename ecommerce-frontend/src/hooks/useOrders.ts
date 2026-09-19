@@ -13,6 +13,18 @@ export function useOrders(page = 1) {
   });
 }
 
+/** Fetches a single order (with items) the logged-in user owns — the
+ * backend replies 404, not 403, for an order that exists but belongs to
+ * someone else, so this hook's error handling doesn't need to special-case
+ * ownership itself. */
+export function useOrder(id: number) {
+  return useQuery({
+    queryKey: ["orders", id],
+    queryFn: () => apiClient.get<Order>(`/orders/${id}`).then((response) => response.data),
+    enabled: Number.isFinite(id),
+  });
+}
+
 interface CheckoutInput {
   shippingAddress: string;
   /** Uppercased/trimmed server-side — sent as-is, empty string omitted. */

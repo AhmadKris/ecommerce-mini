@@ -38,6 +38,12 @@ func (m *mockUserRepository) UpdatePassword(ctx context.Context, userID uint, pa
 	return m.Called(ctx, userID, passwordHash).Error(0)
 }
 
+func (m *mockUserRepository) List(ctx context.Context, search string, page, limit int) ([]model.User, int64, error) {
+	args := m.Called(ctx, search, page, limit)
+	users, _ := args.Get(0).([]model.User)
+	return users, args.Get(1).(int64), args.Error(2)
+}
+
 type mockPasswordResetStore struct {
 	mock.Mock
 }

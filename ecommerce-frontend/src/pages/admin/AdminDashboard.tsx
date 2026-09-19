@@ -4,6 +4,7 @@ const links = [
   { to: "/admin/products", label: "Produk", description: "Tambah dan ubah produk katalog." },
   { to: "/admin/categories", label: "Kategori", description: "Kelola kategori produk." },
   { to: "/admin/orders", label: "Pesanan", description: "Lihat semua pesanan dari seluruh customer." },
+  { to: "/admin/inventory", label: "Stok", description: "Sesuaikan stok produk dan lihat riwayat pergerakannya." },
   { to: "/admin/promotions", label: "Promo", description: "Kelola kode diskon dan masa berlakunya." },
   { to: "/admin/reviews", label: "Ulasan", description: "Moderasi ulasan produk dari customer." },
 ];

@@ -25,6 +25,11 @@ export function Header() {
             Pesanan
           </Link>
         )}
+        {isAuthenticated && (
+          <Link to="/profile" className="text-body-md text-(--ink-primary)">
+            Profil
+          </Link>
+        )}
         {isAdmin && (
           <Link to="/admin" className="text-body-md text-(--ink-primary)">
             Admin
