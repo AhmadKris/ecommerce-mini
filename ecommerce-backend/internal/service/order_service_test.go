@@ -43,6 +43,35 @@ func (r *fakeOrderRepo) UpdateStatus(_ context.Context, id uint, status string) 
 	return order, nil
 }
 
+func TestOrderService_GetByID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("found", func(t *testing.T) {
+		t.Parallel()
+
+		orderRepo := newFakeOrderRepo(&model.Order{ID: 1, Status: model.OrderStatusPaid})
+		svc := NewOrderService(orderRepo, &fakeAuditLogRepo{})
+
+		order, err := svc.GetByID(context.Background(), 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if order.ID != 1 {
+			t.Errorf("ID = %d, want 1", order.ID)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
+		orderRepo := newFakeOrderRepo()
+		svc := NewOrderService(orderRepo, &fakeAuditLogRepo{})
+
+		_, err := svc.GetByID(context.Background(), 999)
+		testutil.AssertAppError(t, err, apperror.CodeNotFound, 404)
+	})
+}
+
 func TestOrderService_UpdateStatus_AllowsValidForwardTransitions(t *testing.T) {
 	t.Parallel()
 

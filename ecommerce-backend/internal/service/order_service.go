@@ -109,6 +109,20 @@ func (s *OrderService) ListAll(ctx context.Context, query model.OrderListQuery) 
 	return orders, model.NewMeta(page, limit, total), nil
 }
 
+// GetByID returns a single order with its items, for the admin order detail
+// page — no ownership check, since only order:read_all-gated callers reach
+// this (any admin may look up any order, unlike the customer-facing List).
+func (s *OrderService) GetByID(ctx context.Context, orderID uint) (*model.Order, error) {
+	order, err := s.orderRepo.FindByID(ctx, orderID)
+	if err != nil {
+		return nil, apperror.Internal(fmt.Errorf("service: get order: %w", err))
+	}
+	if order == nil {
+		return nil, apperror.NotFound("Order tidak ditemukan", nil)
+	}
+	return order, nil
+}
+
 // UpdateStatus transitions an order to newStatus, rejecting any transition
 // not in orderStatusTransitions (e.g. "delivered" back to "pending", or any
 // move out of a terminal state) with a 409 rather than silently accepting

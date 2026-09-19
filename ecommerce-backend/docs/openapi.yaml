@@ -794,6 +794,32 @@ paths:
           description: Tidak ada/token akses tidak valid
         "403":
           description: Token valid tapi tidak punya permission order:read_all
+  /api/admin/orders/{id}:
+    get:
+      summary: >
+        Detail satu order berikut rincian item-nya (admin, butuh permission
+        order:read_all) — dasar untuk halaman Admin Order Detail di frontend.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          description: Tidak ada/token akses tidak valid
+        "403":
+          description: Token valid tapi tidak punya permission order:read_all
+        "404":
+          description: Order tidak ditemukan
   /api/admin/orders/{id}/status:
     patch:
       summary: >

@@ -7,6 +7,7 @@ import { Header } from "./components/layout/Header";
 import { Home } from "./pages/Home";
 import { AdminCategories } from "./pages/admin/AdminCategories";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminOrderDetail } from "./pages/admin/AdminOrderDetail";
 import { AdminOrders } from "./pages/admin/AdminOrders";
 import { AdminProducts } from "./pages/admin/AdminProducts";
 import { AdminPromotions } from "./pages/admin/AdminPromotions";
@@ -52,6 +53,7 @@ function App() {
           <Route path="/admin/products/:id/edit" element={<ProductForm />} />
           <Route path="/admin/categories" element={<AdminCategories />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
           <Route path="/admin/promotions" element={<AdminPromotions />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />
         </Route>

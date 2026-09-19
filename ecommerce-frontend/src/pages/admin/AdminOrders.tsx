@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { Button } from "../../components/ui/Button";
 import { useAdminOrders } from "../../hooks/useAdminOrders";
@@ -38,7 +39,11 @@ export function AdminOrders() {
               <tbody>
                 {data.items.map((order) => (
                   <tr key={order.id} className="border-t border-(--border-default)">
-                    <td className="text-body-sm text-(--ink-primary) px-4 py-3">#{order.id}</td>
+                    <td className="text-body-sm px-4 py-3">
+                      <Link to={`/admin/orders/${order.id}`} className="text-(--ink-link)">
+                        #{order.id}
+                      </Link>
+                    </td>
                     <td className="text-body-sm text-(--ink-secondary) px-4 py-3">{order.user_id}</td>
                     <td className="text-body-sm text-(--ink-secondary) px-4 py-3">
                       {new Date(order.created_at).toLocaleDateString("id-ID", { dateStyle: "medium" })}

@@ -26,5 +26,6 @@ func registerOrderRoutes(api *gin.RouterGroup, deps Deps) {
 
 	adminOrders := api.Group("/admin/orders", middleware.RequireAuth(deps.Tokens))
 	adminOrders.GET("", middleware.RequirePermission("order:read_all"), deps.OrderHandler.ListAll)
+	adminOrders.GET("/:id", middleware.RequirePermission("order:read_all"), deps.OrderHandler.GetByID)
 	adminOrders.PATCH("/:id/status", middleware.RequirePermission("order:update_status"), deps.OrderHandler.UpdateStatus)
 }
